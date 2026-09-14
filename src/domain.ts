@@ -7,9 +7,27 @@ export interface TaskList {
   position: number
 }
 
+export interface TaskSection {
+  id: string
+  listId: string
+  projectId?: string
+  name: string
+  position: number
+}
+
+export interface ProjectFolder {
+  id: string
+  listId: string
+  name: string
+  position: number
+  archived: boolean
+}
+
 export interface Task {
   id: string
   listId: string
+  sectionId?: string
+  projectId?: string
   title: string
   position: number
   effort: number

@@ -1,9 +1,11 @@
 import Dexie, { type EntityTable } from 'dexie'
-import type { AppSetting, Task, TaskEvent, TaskList } from './domain'
+import type { AppSetting, ProjectFolder, Task, TaskEvent, TaskList, TaskSection } from './domain'
 import { dateKey } from './domain'
 
 class TwoDaiDatabase extends Dexie {
   lists!: EntityTable<TaskList, 'id'>
+  sections!: EntityTable<TaskSection, 'id'>
+  projects!: EntityTable<ProjectFolder, 'id'>
   tasks!: EntityTable<Task, 'id'>
   events!: EntityTable<TaskEvent, 'id'>
   settings!: EntityTable<AppSetting, 'key'>
@@ -13,6 +15,22 @@ class TwoDaiDatabase extends Dexie {
     this.version(1).stores({
       lists: 'id, position',
       tasks: 'id, listId, nextDueAt, archived, position, updatedAt',
+      events: 'id, taskId, effectiveDate, createdAt',
+      settings: 'key',
+    })
+    this.version(2).stores({
+      lists: 'id, position',
+      sections: 'id, listId, [listId+position]',
+      projects: 'id, listId, archived, [listId+position]',
+      tasks: 'id, listId, sectionId, projectId, nextDueAt, archived, position, updatedAt',
+      events: 'id, taskId, effectiveDate, createdAt',
+      settings: 'key',
+    })
+    this.version(3).stores({
+      lists: 'id, position',
+      sections: 'id, listId, projectId, [listId+position]',
+      projects: 'id, listId, archived, [listId+position]',
+      tasks: 'id, listId, sectionId, projectId, nextDueAt, archived, position, updatedAt',
       events: 'id, taskId, effectiveDate, createdAt',
       settings: 'key',
     })
@@ -35,6 +53,7 @@ class TwoDaiDatabase extends Dexie {
           makeTask('haircut', 'personal', 'Schedule haircut', 4, dateKey(new Date(Date.now() + 4 * 86_400_000)), now, { intervalDays: 42, effort: 2 }),
         ])
         await this.settings.add({ key: 'activeDay', value: today })
+        await this.settings.add({ key: 'userName', value: 'Marcus' })
       })
     })
   }

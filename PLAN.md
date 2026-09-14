@@ -18,8 +18,11 @@
 - [x] Quick entry with time inference (`2:30p`, `at 9am`)
 - [x] Task options for list, effort, interval, fixed schedule, time, and archive
 - [x] Week and Month views that exclude daily-repeat noise
+- [x] High-density list browser with filtering and per-section row insertion
+- [x] Dynamic sections scoped to a list or project folder
+- [x] Project folders with due-task rollups on Today
 - [ ] Undo for the most recent task action
-- [ ] Add, rename, reorder, and archive lists
+- [ ] Rename, reorder, and archive lists, sections, and project folders
 - [ ] Reorder Today tasks and preserve learned order
 - [ ] Start/stop duration tracking
 - [ ] Date/week/season range rules

@@ -5,6 +5,8 @@ import {
   Check,
   ChevronRight,
   Clock3,
+  FolderKanban,
+  LibraryBig,
   ListTodo,
   MoreHorizontal,
   Plus,
@@ -12,6 +14,7 @@ import {
   SkipForward,
 } from 'lucide-react'
 import { db } from './db'
+import { ListWorkspace } from './ListWorkspace'
 import {
   addDays,
   dateKey,
@@ -23,12 +26,14 @@ import {
 } from './domain'
 import './App.css'
 
-type View = 'today' | 'week' | 'month'
+type PlannerView = 'today' | 'week' | 'month'
+type View = PlannerView | 'sheets'
 
 const viewLabels: Record<View, string> = {
   today: 'Today',
   week: 'Week',
   month: 'Month',
+  sheets: 'Lists',
 }
 
 function App() {
@@ -37,16 +42,21 @@ function App() {
   const [entryListId, setEntryListId] = useState('personal')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [showCompleted, setShowCompleted] = useState(false)
+  const [sheetListId, setSheetListId] = useState<string>()
+  const [sheetProjectId, setSheetProjectId] = useState<string>()
 
   const snapshot = useLiveQuery(async () => {
-    const [tasks, lists, activeDaySetting, events] = await Promise.all([
+    const [tasks, lists, sections, projects, activeDaySetting, userNameSetting, events] = await Promise.all([
       db.tasks.toArray(),
       db.lists.orderBy('position').toArray(),
+      db.sections.toArray(),
+      db.projects.toArray(),
       db.settings.get('activeDay'),
+      db.settings.get('userName'),
       db.events.toArray(),
     ])
-    return { tasks, lists, events, activeDay: activeDaySetting?.value ?? dateKey(new Date()) }
-  }, [], { tasks: [], lists: [], events: [], activeDay: dateKey(new Date()) })
+    return { tasks, lists, sections, projects, events, activeDay: activeDaySetting?.value ?? dateKey(new Date()), userName: userNameSetting?.value ?? 'Marcus' }
+  }, [], { tasks: [], lists: [], sections: [], projects: [], events: [], activeDay: dateKey(new Date()), userName: 'Marcus' })
 
   const today = dateKey(new Date())
   const activeDate = new Date(`${snapshot.activeDay}T12:00:00`)
@@ -56,9 +66,17 @@ function App() {
       .filter((event) => event.effectiveDate === snapshot.activeDay && event.action !== 'delayed')
       .map((event) => event.taskId),
   )
-  const visibleTasks = tasksForView(snapshot.tasks, view, activeDate, completedIds, showCompleted)
+  const visibleTasks = view === 'sheets' ? [] : tasksForView(snapshot.tasks, view, activeDate, completedIds, showCompleted)
+  const dueProjects = view === 'today' ? snapshot.projects
+    .filter((project) => !project.archived)
+    .map((project) => ({
+      project,
+      tasks: snapshot.tasks.filter((task) => task.projectId === project.id && !task.archived && task.nextDueAt <= snapshot.activeDay && !completedIds.has(task.id)),
+    }))
+    .filter((group) => group.tasks.length > 0) : []
   const listById = new Map(snapshot.lists.map((list) => [list.id, list]))
   const effort = visibleTasks.reduce((sum, task) => sum + task.effort, 0)
+    + dueProjects.flatMap((group) => group.tasks).reduce((sum, task) => sum + task.effort, 0)
   const selectedTask = snapshot.tasks.find((task) => task.id === selectedTaskId)
 
   async function addTask(event: FormEvent) {
@@ -121,18 +139,24 @@ function App() {
     await db.tasks.update(selectedTask.id, { ...changes, updatedAt: new Date().toISOString() })
   }
 
+  function openSheet(listId?: string, projectId?: string) {
+    setSheetListId(listId)
+    setSheetProjectId(projectId)
+    setView('sheets')
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
-        <div className="brand-mark">2D</div>
+        <div className="brand-mark">2DAI</div>
         <div>
-          <p className="eyebrow">Your day, locally</p>
-          <h1>2Dai</h1>
+          <p className="eyebrow">Your day</p>
+          <h1>{snapshot.userName}</h1>
         </div>
       </header>
 
-      <main>
-        <section className="day-heading">
+      <main className={view === 'sheets' ? 'lists-main' : ''}>
+        {view !== 'sheets' && <section className="day-heading">
           <div>
             <p className="date-label">{formatFriendlyDate(activeDate)}</p>
             <h2>{viewLabels[view]}</h2>
@@ -141,16 +165,30 @@ function App() {
             <span>Effort</span>
             <strong>{effort}</strong>
           </div>
-        </section>
+        </section>}
 
         <nav className="view-tabs" aria-label="Planning range">
-          {(['today', 'week', 'month'] as const).map((item) => (
+          {(['today', 'week', 'month', 'sheets'] as const).map((item) => (
             <button className={view === item ? 'active' : ''} key={item} type="button" onClick={() => setView(item)}>
-              {item === 'today' ? <ListTodo size={17} /> : <CalendarDays size={17} />}
+              {item === 'today' ? <ListTodo size={17} /> : item === 'sheets' ? <LibraryBig size={17} /> : <CalendarDays size={17} />}
               {viewLabels[item]}
             </button>
           ))}
         </nav>
+
+        {view === 'sheets' && (
+          <ListWorkspace
+            lists={snapshot.lists}
+            sections={snapshot.sections}
+            projects={snapshot.projects}
+            tasks={snapshot.tasks}
+            initialListId={sheetListId}
+            initialProjectId={sheetProjectId}
+            onLocationChange={openSheet}
+            onManage={manageTask}
+            onEdit={setSelectedTaskId}
+          />
+        )}
 
         {view === 'today' && (
           <form className="quick-add" onSubmit={addTask}>
@@ -171,15 +209,28 @@ function App() {
           </button>
         )}
 
-        <section className="task-section" aria-live="polite">
+        {view !== 'sheets' && <section className="task-section" aria-live="polite">
           <div className="section-label">
-            <span>{view === 'today' ? `${visibleTasks.length} tasks` : 'Upcoming, without daily repeats'}</span>
+            <span>{view === 'today' ? `${visibleTasks.length + dueProjects.length} items` : 'Upcoming, without daily repeats'}</span>
             {view === 'today' && (
               <label><input type="checkbox" checked={showCompleted} onChange={(event) => setShowCompleted(event.target.checked)} /> Show managed</label>
             )}
           </div>
 
           <div className="task-list">
+            {dueProjects.map(({ project, tasks }) => {
+              const list = listById.get(project.listId)
+              return (
+                <article className="task-row project-rollup" key={project.id}>
+                  <span className="project-rollup-icon"><FolderKanban size={19} /></span>
+                  <button className="task-copy" type="button" onClick={() => openSheet(project.listId, project.id)}>
+                    <span className="task-title">{project.name}</span>
+                    <span className="task-meta"><i style={{ background: list?.color }} /> {list?.name} · {tasks.length} due inside</span>
+                  </button>
+                  <button className="rollup-open" type="button" onClick={() => openSheet(project.listId, project.id)} aria-label={`Open ${project.name}`}><ChevronRight size={19} /></button>
+                </article>
+              )
+            })}
             {visibleTasks.map((task) => {
               const list = listById.get(task.listId)
               const isManaged = completedIds.has(task.id)
@@ -202,11 +253,11 @@ function App() {
                 </article>
               )
             })}
-            {!visibleTasks.length && (
+            {!visibleTasks.length && !dueProjects.length && (
               <div className="empty-state"><Check size={26} /><strong>Nothing waiting here</strong><span>{view === 'today' ? 'Add a task or take the win.' : 'No non-daily tasks are due in this range.'}</span></div>
             )}
           </div>
-        </section>
+        </section>}
       </main>
 
       {selectedTask && (
@@ -219,6 +270,8 @@ function App() {
             </div>
             <div className="option-grid">
               <label>List<select value={selectedTask.listId} onChange={(event) => updateTask({ listId: event.target.value })}>{snapshot.lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}</select></label>
+              <label>Section<select value={selectedTask.sectionId ?? ''} onChange={(event) => updateTask({ sectionId: event.target.value || undefined })}><option value="">Todo</option>{snapshot.sections.filter((section) => section.listId === selectedTask.listId).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></label>
+              <label>Project<select value={selectedTask.projectId ?? ''} onChange={(event) => updateTask({ projectId: event.target.value || undefined })}><option value="">Top level</option>{snapshot.projects.filter((project) => project.listId === selectedTask.listId && !project.archived).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
               <label>Effort<input type="number" min="1" max="10" value={selectedTask.effort} onChange={(event) => updateTask({ effort: Number(event.target.value) })} /></label>
               <label>Repeat every<input type="number" min="1" placeholder="Days" value={selectedTask.intervalDays ?? ''} onChange={(event) => updateTask({ intervalDays: event.target.value ? Number(event.target.value) : undefined })} /></label>
               <label>Preferred time<input type="time" value={selectedTask.preferredTime ?? ''} onChange={(event) => updateTask({ preferredTime: event.target.value || undefined })} /></label>
@@ -232,10 +285,11 @@ function App() {
   )
 }
 
-function tasksForView(tasks: Task[], view: View, activeDate: Date, completedIds: Set<string>, showCompleted: boolean): Task[] {
+function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, completedIds: Set<string>, showCompleted: boolean): Task[] {
   const start = dateKey(activeDate)
   const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
   return tasks
+    .filter((task) => !task.projectId)
     .filter((task) => !task.archived || (view === 'today' && showCompleted && completedIds.has(task.id)))
     .filter((task) => {
       if (view === 'today') return completedIds.has(task.id) ? showCompleted : task.nextDueAt <= start
