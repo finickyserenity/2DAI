@@ -36,6 +36,7 @@ export interface Task {
   preferredTime?: string
   lastCompletedAt?: string
   nextDueAt: string
+  plannerVisible?: boolean
   archived: boolean
   createdAt: string
   updatedAt: string

@@ -289,6 +289,7 @@ function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, comple
   const start = dateKey(activeDate)
   const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
   return tasks
+    .filter((task) => task.plannerVisible !== false)
     .filter((task) => !task.projectId)
     .filter((task) => !task.archived || (view === 'today' && showCompleted && completedIds.has(task.id)))
     .filter((task) => {

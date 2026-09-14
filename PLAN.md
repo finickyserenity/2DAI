@@ -21,6 +21,7 @@
 - [x] High-density list browser with filtering and per-section row insertion
 - [x] Dynamic sections scoped to a list or project folder
 - [x] Project folders with due-task rollups on Today
+- [x] Repeatable Google Sheets TSV import with preview and atomic list replacement
 - [ ] Undo for the most recent task action
 - [ ] Rename, reorder, and archive lists, sections, and project folders
 - [ ] Reorder Today tasks and preserve learned order

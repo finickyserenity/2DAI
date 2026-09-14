@@ -6,11 +6,13 @@ import {
   Check,
   ChevronRight,
   FolderKanban,
+  Import,
   MoreHorizontal,
   Plus,
   Search,
 } from 'lucide-react'
 import { db } from './db'
+import { ImportListDialog } from './ImportListDialog.tsx'
 import { dateKey, parseTaskInput, type ProjectFolder, type Task, type TaskAction, type TaskList, type TaskSection } from './domain'
 
 interface ListWorkspaceProps {
@@ -43,7 +45,7 @@ export function ListWorkspace({
   const activeProject = projects.find((project) => project.id === initialProjectId)
 
   if (!activeList) {
-    return <SheetIndex lists={lists} tasks={tasks} projects={projects} onOpen={(listId) => onLocationChange(listId)} />
+    return <ListIndex lists={lists} tasks={tasks} projects={projects} onOpen={(listId) => onLocationChange(listId)} />
   }
 
   const activeListId = activeList.id
@@ -147,11 +149,12 @@ export function ListWorkspace({
   )
 }
 
-function SheetIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; tasks: Task[]; projects: ProjectFolder[]; onOpen: (id: string) => void }) {
+function ListIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; tasks: Task[]; projects: ProjectFolder[]; onOpen: (id: string) => void }) {
   const [creating, setCreating] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [name, setName] = useState('')
 
-  async function addSheet(event: FormEvent) {
+  async function addList(event: FormEvent) {
     event.preventDefault()
     const cleanName = name.trim()
     if (!cleanName) return
@@ -166,10 +169,13 @@ function SheetIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; tas
     <section className="list-index">
       <div className="list-titlebar">
         <div><p className="date-label">Task library</p><h2>Lists</h2><span>Browse and organize complete task inventories</span></div>
-        <button type="button" aria-label="New list" onClick={() => setCreating(true)}><Plus size={17} /> New</button>
+        <div className="list-index-actions">
+          <button type="button" onClick={() => setImporting(true)}><Import size={17} /> Import</button>
+          <button type="button" aria-label="New list" onClick={() => setCreating(true)}><Plus size={17} /> New</button>
+        </div>
       </div>
       {creating && (
-        <form className="inline-create" onSubmit={addSheet}>
+        <form className="inline-create" onSubmit={addList}>
           <Plus size={18} />
           <input autoFocus value={name} onChange={(event) => setName(event.target.value)} placeholder="List name" aria-label="List name" />
           <button type="submit" disabled={!name.trim()}>Create</button>
@@ -189,6 +195,7 @@ function SheetIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; tas
           )
         })}
       </div>
+      {importing && <ImportListDialog onClose={() => setImporting(false)} onImported={(listId) => { setImporting(false); onOpen(listId) }} />}
     </section>
   )
 }
