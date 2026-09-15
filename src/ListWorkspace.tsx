@@ -5,11 +5,14 @@ import {
   ArrowUp,
   Check,
   ChevronRight,
+  Pencil,
   FolderKanban,
   Import,
   MoreHorizontal,
   Plus,
   Search,
+  Trash2,
+  X,
 } from 'lucide-react'
 import { db } from './db'
 import { ImportListDialog } from './ImportListDialog.tsx'
@@ -58,6 +61,10 @@ export function ListWorkspace({
     .filter((section) => activeProject ? section.projectId === activeProject.id : !section.projectId)
     .sort((a, b) => a.position - b.position)
   const listProjects = projects.filter((project) => project.listId === activeListId && !project.archived).sort((a, b) => a.position - b.position)
+  const activeListTasks = tasks.filter((task) => task.listId === activeListId)
+  const canDeleteList = activeListTasks.every((task) => task.archived)
+  const activeProjectTasks = activeProject ? tasks.filter((task) => task.projectId === activeProject.id) : []
+  const canDeleteProject = activeProjectTasks.every((task) => task.archived)
   const scopedTasks = tasks
     .filter((task) => task.listId === activeListId && (!task.archived || managedTaskIds.has(task.id)))
     .filter((task) => activeProject ? task.projectId === activeProject.id : !task.projectId)
@@ -70,13 +77,54 @@ export function ListWorkspace({
     if (!name || !creationMode) return
     const id = crypto.randomUUID()
     if (creationMode === 'section') {
-      await db.sections.add({ id, listId: activeListId, projectId: activeProject?.id, name, position: Date.now() })
+      await db.transaction('rw', db.lists, db.projects, db.sections, async () => {
+        if (!await db.lists.get(activeListId)) return
+        if (activeProject && !await db.projects.get(activeProject.id)) return
+        await db.sections.add({ id, listId: activeListId, projectId: activeProject?.id, name, position: Date.now() })
+      })
     } else {
-      await db.projects.add({ id, listId: activeListId, name, position: Date.now(), archived: false })
-      onLocationChange(activeListId, id)
+      const created = await db.transaction('rw', db.lists, db.projects, async () => {
+        if (!await db.lists.get(activeListId)) return false
+        await db.projects.add({ id, listId: activeListId, name, position: Date.now(), archived: false })
+        return true
+      })
+      if (created) onLocationChange(activeListId, id)
     }
     setCreationName('')
     setCreationMode(undefined)
+  }
+
+  async function deleteProject() {
+    if (!activeProject) return
+    const deleted = await db.transaction('rw', db.projects, db.sections, db.tasks, db.events, async () => {
+      const storedTasks = await db.tasks.where('projectId').equals(activeProject.id).toArray()
+      if (storedTasks.some((task) => !task.archived)) return false
+      if (storedTasks.length) {
+        await db.events.where('taskId').anyOf(storedTasks.map((task) => task.id)).delete()
+        await db.tasks.bulkDelete(storedTasks.map((task) => task.id))
+      }
+      await db.sections.where('projectId').equals(activeProject.id).delete()
+      await db.projects.delete(activeProject.id)
+      return true
+    })
+    if (deleted) onLocationChange(activeListId)
+  }
+
+  async function deleteList() {
+    if (activeProject) return
+    const deleted = await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, db.events, async () => {
+      const storedTasks = await db.tasks.where('listId').equals(activeListId).toArray()
+      if (storedTasks.some((task) => !task.archived)) return false
+      if (storedTasks.length) {
+        await db.events.where('taskId').anyOf(storedTasks.map((task) => task.id)).delete()
+        await db.tasks.bulkDelete(storedTasks.map((task) => task.id))
+      }
+      await db.sections.where('listId').equals(activeListId).delete()
+      await db.projects.where('listId').equals(activeListId).delete()
+      await db.lists.delete(activeListId)
+      return true
+    })
+    if (deleted) onLocationChange()
   }
 
   return (
@@ -97,6 +145,8 @@ export function ListWorkspace({
         <div className="list-title-actions">
           {!activeProject && <button type="button" onClick={() => setCreationMode('project')}><FolderKanban size={17} /> New project</button>}
           <button type="button" onClick={() => setCreationMode('section')}><Plus size={17} /> New section</button>
+          {!activeProject && <button className="danger-button" type="button" disabled={!canDeleteList} onClick={deleteList} title={canDeleteList ? 'Delete list and its archived tasks' : 'Archive every task before deleting this list'}><Trash2 size={17} /> Delete list</button>}
+          {activeProject && <button className="danger-button" type="button" disabled={!canDeleteProject} onClick={deleteProject} title={canDeleteProject ? 'Delete project and its archived tasks' : 'Archive every task before deleting this project'}><Trash2 size={17} /> Delete project</button>}
         </div>
       </div>
 
@@ -142,8 +192,10 @@ export function ListWorkspace({
       {listSections.map((section) => (
         <SheetSection
           key={section.id}
+          section={section}
           name={section.name}
           tasks={scopedTasks.filter((task) => task.sectionId === section.id)}
+          sectionTasks={tasks.filter((task) => task.sectionId === section.id)}
           listId={activeList.id}
           sectionId={section.id}
           projectId={activeProject?.id}
@@ -209,8 +261,10 @@ function ListIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; task
 }
 
 interface SheetSectionProps {
+  section?: TaskSection
   name: string
   tasks: Task[]
+  sectionTasks?: Task[]
   listId: string
   sectionId?: string
   projectId?: string
@@ -220,21 +274,50 @@ interface SheetSectionProps {
   onEdit: (taskId: string) => void
 }
 
-function SheetSection({ name, tasks, listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
+function SheetSection({ section, name, tasks, sectionTasks = [], listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
   const [entry, setEntry] = useState('')
   const [collapsed, setCollapsed] = useState(false)
+  const [renaming, setRenaming] = useState(false)
+  const [sectionName, setSectionName] = useState(name)
+  const canDelete = sectionTasks.every((task) => task.archived)
+
+  async function renameSection(event: FormEvent) {
+    event.preventDefault()
+    const cleanName = sectionName.trim()
+    if (!section || !cleanName) return
+    await db.sections.update(section.id, { name: cleanName })
+    setRenaming(false)
+  }
+
+  async function deleteSection() {
+    if (!section) return
+    await db.transaction('rw', db.sections, db.tasks, db.events, async () => {
+      const storedTasks = await db.tasks.where('sectionId').equals(section.id).toArray()
+      if (storedTasks.some((task) => !task.archived)) return
+      if (storedTasks.length) {
+        await db.events.where('taskId').anyOf(storedTasks.map((task) => task.id)).delete()
+        await db.tasks.bulkDelete(storedTasks.map((task) => task.id))
+      }
+      await db.sections.delete(section.id)
+    })
+  }
 
   async function addRow(event: FormEvent) {
     event.preventDefault()
     const parsed = parseTaskInput(entry)
     if (!parsed.title) return
     const now = new Date().toISOString()
-    await db.tasks.add({
-      id: crypto.randomUUID(), listId, sectionId, projectId, title: parsed.title,
-      preferredTime: parsed.preferredTime, position: Date.now(), effort: 1,
-      intervalDays: parsed.intervalDays, fixedInterval: parsed.fixedInterval,
-      nextDueAt: dateKey(new Date()), archived: false,
-      createdAt: now, updatedAt: now,
+    await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, async () => {
+      if (!await db.lists.get(listId)) return
+      if (projectId && !await db.projects.get(projectId)) return
+      if (sectionId && !await db.sections.get(sectionId)) return
+      await db.tasks.add({
+        id: crypto.randomUUID(), listId, sectionId, projectId, title: parsed.title,
+        preferredTime: parsed.preferredTime, position: Date.now(), effort: 1,
+        intervalDays: parsed.intervalDays, fixedInterval: parsed.fixedInterval,
+        nextDueAt: dateKey(new Date()), archived: false,
+        createdAt: now, updatedAt: now,
+      })
     })
     setEntry('')
   }
@@ -251,9 +334,25 @@ function SheetSection({ name, tasks, listId, sectionId, projectId, activeDay, ma
 
   return (
     <section className="raw-section">
-      <button className="raw-section-heading" type="button" onClick={() => setCollapsed((value) => !value)}>
-        <ChevronRight className={collapsed ? '' : 'open'} size={17} /><strong>{name}</strong><span>{tasks.length}</span>
-      </button>
+      <div className="raw-section-heading">
+        <button className="raw-section-toggle" type="button" onClick={() => setCollapsed((value) => !value)} aria-label={`${collapsed ? 'Expand' : 'Collapse'} ${name}`}>
+          <ChevronRight className={collapsed ? '' : 'open'} size={17} />
+        </button>
+        {renaming ? (
+          <form className="raw-section-rename" onSubmit={renameSection}>
+            <input autoFocus value={sectionName} onChange={(event) => setSectionName(event.target.value)} aria-label="Section name" />
+            <button type="submit" disabled={!sectionName.trim()}><Check size={16} /><span className="sr-only">Save section name</span></button>
+            <button type="button" onClick={() => { setSectionName(name); setRenaming(false) }}><X size={16} /><span className="sr-only">Cancel rename</span></button>
+          </form>
+        ) : <strong>{name}</strong>}
+        <span className="raw-section-count">{tasks.length}</span>
+        {section && !renaming && (
+          <div className="raw-section-actions">
+            <button type="button" onClick={() => { setSectionName(name); setRenaming(true) }} title="Rename section" aria-label={`Rename ${name}`}><Pencil size={15} /></button>
+            <button type="button" disabled={!canDelete} onClick={deleteSection} title={canDelete ? 'Delete section and its archived tasks' : 'Archive every task before deleting this section'} aria-label={`Delete ${name}`}><Trash2 size={15} /></button>
+          </div>
+        )}
+      </div>
       {!collapsed && (
         <>
           <div className="raw-table-heading"><span>Done</span><span>Task</span><span>Due</span><span>Repeat</span><span /></div>

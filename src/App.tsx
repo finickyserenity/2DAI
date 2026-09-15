@@ -89,19 +89,22 @@ function App() {
     if (!parsed.title) return
 
     const now = new Date().toISOString()
-    await db.tasks.add({
-      id: crypto.randomUUID(),
-      listId: entryListId,
-      title: parsed.title,
-      preferredTime: parsed.preferredTime,
-      intervalDays: parsed.intervalDays,
-      position: Date.now(),
-      effort: 1,
-      fixedInterval: parsed.fixedInterval,
-      nextDueAt: snapshot.activeDay,
-      archived: false,
-      createdAt: now,
-      updatedAt: now,
+    await db.transaction('rw', db.lists, db.tasks, async () => {
+      if (!await db.lists.get(entryListId)) return
+      await db.tasks.add({
+        id: crypto.randomUUID(),
+        listId: entryListId,
+        title: parsed.title,
+        preferredTime: parsed.preferredTime,
+        intervalDays: parsed.intervalDays,
+        position: Date.now(),
+        effort: 1,
+        fixedInterval: parsed.fixedInterval,
+        nextDueAt: snapshot.activeDay,
+        archived: false,
+        createdAt: now,
+        updatedAt: now,
+      })
     })
     setEntry('')
   }
@@ -110,6 +113,7 @@ function App() {
     const now = new Date()
     const effectiveDate = snapshot.activeDay
     await db.transaction('rw', db.tasks, db.events, async () => {
+      if (!await db.tasks.get(task.id)) return
       const existingEvent = managedEvents.get(task.id)
       if (existingEvent && action !== 'completed') return
       if (existingEvent) {
@@ -160,7 +164,13 @@ function App() {
 
   async function updateTask(changes: Partial<Task>) {
     if (!selectedTask) return
-    await db.tasks.update(selectedTask.id, { ...changes, updatedAt: new Date().toISOString() })
+    await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, async () => {
+      const targetListId = changes.listId ?? selectedTask.listId
+      if (!await db.lists.get(targetListId)) return
+      if (changes.projectId && !await db.projects.get(changes.projectId)) return
+      if (changes.sectionId && !await db.sections.get(changes.sectionId)) return
+      await db.tasks.update(selectedTask.id, { ...changes, updatedAt: new Date().toISOString() })
+    })
   }
 
   async function updateLastCompleted(value: string) {
