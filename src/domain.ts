@@ -58,20 +58,30 @@ export interface AppSetting {
 export interface ParsedTaskInput {
   title: string
   preferredTime?: string
+  intervalDays?: number
+  fixedInterval: boolean
 }
 
 const TIME_PATTERN = /(?:^|\s)(?:at\s+)?(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(a(?:m)?|p(?:m)?)(?=\s|$)/i
+const RECURRENCE_PATTERN = /(?:^|\s)(\d+)d(!)?(?=\s|$)/i
 
 export function parseTaskInput(input: string): ParsedTaskInput {
-  const match = input.match(TIME_PATTERN)
-  if (!match) return { title: input.trim() }
+  const recurrenceMatch = input.match(RECURRENCE_PATTERN)
+  const withoutRecurrence = recurrenceMatch ? input.replace(recurrenceMatch[0], ' ') : input
+  const timeMatch = withoutRecurrence.match(TIME_PATTERN)
+  let preferredTime: string | undefined
 
-  let hour = Number(match[1]) % 12
-  if (match[3].toLowerCase().startsWith('p')) hour += 12
+  if (timeMatch) {
+    let hour = Number(timeMatch[1]) % 12
+    if (timeMatch[3].toLowerCase().startsWith('p')) hour += 12
+    preferredTime = `${String(hour).padStart(2, '0')}:${timeMatch[2] ?? '00'}`
+  }
 
   return {
-    title: input.replace(match[0], ' ').replace(/\s+/g, ' ').trim(),
-    preferredTime: `${String(hour).padStart(2, '0')}:${match[2] ?? '00'}`,
+    title: (timeMatch ? withoutRecurrence.replace(timeMatch[0], ' ') : withoutRecurrence).replace(/\s+/g, ' ').trim(),
+    preferredTime,
+    intervalDays: recurrenceMatch ? Number(recurrenceMatch[1]) : undefined,
+    fixedInterval: Boolean(recurrenceMatch?.[2]),
   }
 }
 

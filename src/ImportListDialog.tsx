@@ -9,19 +9,20 @@ interface ImportListDialogProps {
 }
 
 export function ImportListDialog({ onClose, onImported }: ImportListDialogProps) {
-  const [listName, setListName] = useState('Laundry')
-  const [categoryRows, setCategoryRows] = useState('Kids, Guests, Cats, Adhoc')
+  const [listName, setListName] = useState('')
   const [source, setSource] = useState('')
   const [preview, setPreview] = useState<GoogleSheetsImportPreview>()
   const [error, setError] = useState('')
   const [importing, setImporting] = useState(false)
 
   function buildPreview(text = source) {
+    if (!listName.trim()) {
+      setPreview(undefined)
+      setError('Enter a list name before previewing the import.')
+      return
+    }
     try {
-      setPreview(parseGoogleSheetsTsv(text, {
-        listName,
-        categoryRows: categoryRows.split(',').map((name) => name.trim()).filter(Boolean),
-      }))
+      setPreview(parseGoogleSheetsTsv(text, { listName }))
       setError('')
     } catch (caught) {
       setPreview(undefined)
@@ -34,7 +35,6 @@ export function ImportListDialog({ onClose, onImported }: ImportListDialogProps)
     if (!file) return
     const text = await file.text()
     setSource(text)
-    if (!listName.trim()) setListName(file.name.replace(/\.(tab|tsv|txt)$/i, ''))
     buildPreview(text)
   }
 
@@ -45,15 +45,13 @@ export function ImportListDialog({ onClose, onImported }: ImportListDialogProps)
       return
     }
     const text = await response.text()
-    setListName('Laundry')
-    setCategoryRows('Kids, Guests, Cats, Adhoc')
     setSource(text)
-    setPreview(parseGoogleSheetsTsv(text, { listName: 'Laundry', categoryRows: ['Kids', 'Guests', 'Cats', 'Adhoc'] }))
-    setError('')
+    setPreview(undefined)
+    if (!listName.trim()) setError('Enter a list name before previewing the import.')
   }
 
   async function runImport() {
-    if (!preview) return
+    if (!preview || !listName.trim()) return
     setImporting(true)
     try {
       const listId = await replaceListFromPreview(preview)
@@ -73,8 +71,7 @@ export function ImportListDialog({ onClose, onImported }: ImportListDialogProps)
         </header>
 
         <div className="import-fields">
-          <label>List name<input value={listName} onChange={(event) => { setListName(event.target.value); setPreview(undefined) }} /></label>
-          <label>Category label rows<input value={categoryRows} onChange={(event) => { setCategoryRows(event.target.value); setPreview(undefined) }} placeholder="Kids, Guests, Cats" /></label>
+          <label>List name<input required value={listName} onChange={(event) => { setListName(event.target.value); setPreview(undefined) }} /></label>
         </div>
 
         <label className="import-source-label"><span><ClipboardPaste size={16} /> Paste the copied tab contents</span>

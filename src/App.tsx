@@ -90,9 +90,10 @@ function App() {
       listId: entryListId,
       title: parsed.title,
       preferredTime: parsed.preferredTime,
+      intervalDays: parsed.intervalDays,
       position: Date.now(),
       effort: 1,
-      fixedInterval: false,
+      fixedInterval: parsed.fixedInterval,
       nextDueAt: snapshot.activeDay,
       archived: false,
       createdAt: now,
@@ -193,7 +194,7 @@ function App() {
         {view === 'today' && (
           <form className="quick-add" onSubmit={addTask}>
             <Plus size={21} aria-hidden="true" />
-            <input value={entry} onChange={(event) => setEntry(event.target.value)} placeholder="Add a task, try ‘Call Mom 2:30p’" aria-label="New task" />
+            <input value={entry} onChange={(event) => setEntry(event.target.value)} placeholder="Add a task, try ‘Call Mom 2:30p 7d!’" aria-label="New task" />
             <select value={entryListId} onChange={(event) => setEntryListId(event.target.value)} aria-label="Task list">
               {snapshot.lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
             </select>

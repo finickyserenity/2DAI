@@ -14,17 +14,17 @@ The Lists page accepts the tab-separated text produced when a Google Sheets rang
 | Earliest Completed | Last completion timestamp |
 | Archive | Archived state |
 
-Rows with an empty Task cell separate sections. Named rows such as `Kids` or `Guests` can be entered as **Category label rows**; these become prefixes for following sections and are not imported as tasks. Interval-0 tasks that are not due remain available in their List but do not flood Today.
+Rows with an empty Task cell separate sections. Standalone unscheduled labels such as `Kids` or `Guests` are detected as category headings automatically; these become prefixes for following sections and are not imported as tasks. Interval-0 tasks that are not due remain available in their List but do not flood Today.
 
 ## Development rehearsal
 
 1. Preserve the original `.tab`/`.tsv` export under `data/` as a fixture. Files in this folder are available to the development server but are not copied into the production bundle.
 2. Open **Lists → Import**.
 3. Paste the export, choose the file, or use the development fixture button.
-4. Set the list name and comma-separated category label rows.
+4. Set the list name.
 5. Preview the task count and inferred section names.
 6. Import and inspect the List, Today, Week, and Month views.
-7. Correct source data or category settings and import again. The same list name atomically replaces the prior rehearsal.
+7. Correct source data and import again. The same list name atomically replaces the prior rehearsal.
 
 ## Production launch
 
@@ -38,4 +38,4 @@ Rows with an empty Task cell separate sections. Named rows such as `Kids` or `Gu
 
 ## Other list templates
 
-The parser discovers columns by header name rather than fixed position. Other spreadsheets may contain extra helper columns or arrange supported columns differently. Use category label rows to model standalone headings; blank Task rows remain section separators. Any unsupported scheduling field should be added to the mapping and preview warnings before importing production data rather than silently discarded.
+The parser discovers columns by header name rather than fixed position. Other spreadsheets may contain extra helper columns or arrange supported columns differently. Single-word standalone rows with only blank or default metadata are treated as category headings and listed in the preview warnings; blank Task rows remain section separators. Any unsupported scheduling field should be added to the mapping and preview warnings before importing production data rather than silently discarded.

@@ -2,7 +2,6 @@ import { addDays, dateKey, type Task } from '../domain.ts'
 
 export interface GoogleSheetsImportOptions {
   listName: string
-  categoryRows?: string[]
   year?: number
 }
 
@@ -42,7 +41,6 @@ export function parseGoogleSheetsTsv(text: string, options: GoogleSheetsImportOp
   const effortColumn = column('effort')
   const completedColumn = column('earliest completed')
   const archiveColumn = column('archive')
-  const categoryRows = new Set((options.categoryRows ?? []).map(normalize))
   const warnings: string[] = []
   const unsupportedColumns = ['range start', 'range end', 'start task at', 'sync due']
     .map((name) => ({ name, index: column(name) }))
@@ -68,10 +66,12 @@ export function parseGoogleSheetsTsv(text: string, options: GoogleSheetsImportOp
 
   let category: string | undefined
   const sections: ImportedSection[] = []
-  for (const rows of chunks) {
+  const detectedCategories: string[] = []
+  for (const [chunkIndex, rows] of chunks.entries()) {
     const firstTitle = rows[0].cells[taskColumn].trim()
-    if (rows.length === 1 && categoryRows.has(normalize(firstTitle))) {
+    if (isCategoryHeading(rows, taskColumn, chunkIndex < chunks.length - 1)) {
       category = firstTitle
+      detectedCategories.push(firstTitle)
       continue
     }
 
@@ -105,6 +105,7 @@ export function parseGoogleSheetsTsv(text: string, options: GoogleSheetsImportOp
   for (const [name, count] of unsupportedCounts) {
     warnings.push(`${titleCase(name)} has ${count} populated ${count === 1 ? 'row' : 'rows'} and is not imported yet.`)
   }
+  if (detectedCategories.length) warnings.push(`Detected category headings: ${detectedCategories.join(', ')}.`)
   if (!sections.length) warnings.push('No task groups were found after the header.')
   return {
     listName: options.listName.trim() || 'Imported list',
@@ -114,10 +115,23 @@ export function parseGoogleSheetsTsv(text: string, options: GoogleSheetsImportOp
   }
 }
 
+function isCategoryHeading(
+  rows: Array<{ cells: string[] }>,
+  taskColumn: number,
+  hasFollowingChunk: boolean,
+): boolean {
+  if (rows.length !== 1 || !hasFollowingChunk) return false
+  const cells = rows[0].cells
+  const titleWords = (cells[taskColumn] ?? '').split(/\s+/).map(normalize).filter(Boolean)
+  if (titleWords.length !== 1 || ACTION_WORDS.has(titleWords[0])) return false
+  return cells.every((cell, index) => index === taskColumn || ['', 'false', '0'].includes(normalize(cell)))
+}
+
 function parseInterval(value = ''): { days?: number; fixed: boolean } {
-  const clean = value.trim()
-  const days = Number.parseInt(clean, 10)
-  return { days: Number.isFinite(days) && days > 0 ? days : undefined, fixed: clean.endsWith('!') }
+  const match = value.trim().match(/^(\d+)d?(!)?$/i)
+  if (!match) return { fixed: false }
+  const days = Number(match[1])
+  return { days: days > 0 ? days : undefined, fixed: days > 0 && Boolean(match[2]) }
 }
 
 function parseSheetDate(value = '', fallbackYear = new Date().getFullYear()): Date | undefined {

@@ -222,7 +222,8 @@ function SheetSection({ name, tasks, listId, sectionId, projectId, onManage, onE
     await db.tasks.add({
       id: crypto.randomUUID(), listId, sectionId, projectId, title: parsed.title,
       preferredTime: parsed.preferredTime, position: Date.now(), effort: 1,
-      fixedInterval: false, nextDueAt: dateKey(new Date()), archived: false,
+      intervalDays: parsed.intervalDays, fixedInterval: parsed.fixedInterval,
+      nextDueAt: dateKey(new Date()), archived: false,
       createdAt: now, updatedAt: now,
     })
     setEntry('')
