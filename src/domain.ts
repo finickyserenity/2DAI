@@ -48,6 +48,9 @@ export interface TaskEvent {
   action: TaskAction
   effectiveDate: string
   createdAt: string
+  previousNextDueAt?: string
+  previousLastCompletedAt?: string
+  previousArchived?: boolean
 }
 
 export interface AppSetting {

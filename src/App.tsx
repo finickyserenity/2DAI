@@ -23,6 +23,7 @@ import {
   parseTaskInput,
   type Task,
   type TaskAction,
+  type TaskEvent,
 } from './domain'
 import './App.css'
 
@@ -61,11 +62,14 @@ function App() {
   const today = dateKey(new Date())
   const activeDate = new Date(`${snapshot.activeDay}T12:00:00`)
   const isNewDayAvailable = snapshot.activeDay < today
-  const completedIds = new Set(
-    snapshot.events
-      .filter((event) => event.effectiveDate === snapshot.activeDay && event.action !== 'delayed')
-      .map((event) => event.taskId),
-  )
+  const managedEvents = snapshot.events
+    .filter((event) => event.effectiveDate === snapshot.activeDay && event.action !== 'delayed')
+    .reduce((events, event) => {
+      const existing = events.get(event.taskId)
+      if (!existing || existing.createdAt < event.createdAt) events.set(event.taskId, event)
+      return events
+    }, new Map<string, TaskEvent>())
+  const completedIds = new Set(managedEvents.keys())
   const visibleTasks = view === 'sheets' ? [] : tasksForView(snapshot.tasks, view, activeDate, completedIds, showCompleted)
   const dueProjects = view === 'today' ? snapshot.projects
     .filter((project) => !project.archived)
@@ -106,12 +110,31 @@ function App() {
     const now = new Date()
     const effectiveDate = snapshot.activeDay
     await db.transaction('rw', db.tasks, db.events, async () => {
+      const existingEvent = managedEvents.get(task.id)
+      if (existingEvent && action !== 'completed') return
+      if (existingEvent) {
+        const previousCompletion = snapshot.events
+          .filter((event) => event.taskId === task.id && event.action === 'completed' && event.createdAt < existingEvent.createdAt)
+          .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]
+        await db.events.delete(existingEvent.id)
+        await db.tasks.update(task.id, {
+          nextDueAt: existingEvent.previousNextDueAt ?? existingEvent.effectiveDate,
+          lastCompletedAt: existingEvent.previousLastCompletedAt ?? previousCompletion?.createdAt,
+          archived: existingEvent.previousArchived ?? false,
+          updatedAt: now.toISOString(),
+        })
+        return
+      }
+
       await db.events.add({
         id: crypto.randomUUID(),
         taskId: task.id,
         action,
         effectiveDate,
         createdAt: now.toISOString(),
+        previousNextDueAt: task.nextDueAt,
+        previousLastCompletedAt: task.lastCompletedAt,
+        previousArchived: task.archived,
       })
 
       if (action === 'delayed') {
@@ -138,6 +161,21 @@ function App() {
   async function updateTask(changes: Partial<Task>) {
     if (!selectedTask) return
     await db.tasks.update(selectedTask.id, { ...changes, updatedAt: new Date().toISOString() })
+  }
+
+  async function updateLastCompleted(value: string) {
+    if (!selectedTask) return
+    if (!value) {
+      await updateTask({ lastCompletedAt: undefined })
+      return
+    }
+    const completedAt = new Date(`${value}T12:00:00`)
+    await updateTask({
+      lastCompletedAt: completedAt.toISOString(),
+      ...selectedTask.intervalDays
+        ? { nextDueAt: dateKey(addDays(completedAt, selectedTask.intervalDays)), archived: false }
+        : {},
+    })
   }
 
   function openSheet(listId?: string, projectId?: string) {
@@ -185,6 +223,8 @@ function App() {
             tasks={snapshot.tasks}
             initialListId={sheetListId}
             initialProjectId={sheetProjectId}
+            activeDay={snapshot.activeDay}
+            managedTaskIds={completedIds}
             onLocationChange={openSheet}
             onManage={manageTask}
             onEdit={setSelectedTaskId}
@@ -235,9 +275,10 @@ function App() {
             {visibleTasks.map((task) => {
               const list = listById.get(task.listId)
               const isManaged = completedIds.has(task.id)
+              const isNotDue = task.nextDueAt > snapshot.activeDay
               return (
-                <article className={`task-row ${isManaged ? 'managed' : ''}`} key={task.id}>
-                  <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-label={`Complete ${task.title}`}><Check size={20} /></button>
+                <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
+                  <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
                   <button className="task-copy" type="button" onClick={() => setSelectedTaskId(task.id)}>
                     <span className="task-title">{task.title}</span>
                     <span className="task-meta">
@@ -247,8 +288,8 @@ function App() {
                     </span>
                   </button>
                   <div className="task-actions">
-                    <button type="button" onClick={() => manageTask(task, 'delayed')} title="Delay one day" aria-label={`Delay ${task.title}`}><Clock3 size={18} /></button>
-                    <button type="button" onClick={() => manageTask(task, 'skipped')} title="Skip this occurrence" aria-label={`Skip ${task.title}`}><SkipForward size={18} /></button>
+                    {!isManaged && <button type="button" onClick={() => manageTask(task, 'delayed')} title="Delay one day" aria-label={`Delay ${task.title}`}><Clock3 size={18} /></button>}
+                    {!isManaged && <button type="button" onClick={() => manageTask(task, 'skipped')} title="Skip this occurrence" aria-label={`Skip ${task.title}`}><SkipForward size={18} /></button>}
                     <button type="button" onClick={() => setSelectedTaskId(task.id)} title="Task options" aria-label={`Options for ${task.title}`}><MoreHorizontal size={19} /></button>
                   </div>
                 </article>
@@ -276,6 +317,7 @@ function App() {
               <label>Effort<input type="number" min="1" max="10" value={selectedTask.effort} onChange={(event) => updateTask({ effort: Number(event.target.value) })} /></label>
               <label>Repeat every<input type="number" min="1" placeholder="Days" value={selectedTask.intervalDays ?? ''} onChange={(event) => updateTask({ intervalDays: event.target.value ? Number(event.target.value) : undefined })} /></label>
               <label>Preferred time<input type="time" value={selectedTask.preferredTime ?? ''} onChange={(event) => updateTask({ preferredTime: event.target.value || undefined })} /></label>
+              <label>Last completed<input type="date" value={selectedTask.lastCompletedAt ? dateKey(new Date(selectedTask.lastCompletedAt)) : ''} onChange={(event) => updateLastCompleted(event.target.value)} /></label>
             </div>
             <label className="toggle-row"><span><strong>Fixed schedule</strong><small>Repeat from the scheduled date, not completion</small></span><input type="checkbox" checked={selectedTask.fixedInterval} onChange={(event) => updateTask({ fixedInterval: event.target.checked })} /></label>
             <button className="archive-button" type="button" onClick={async () => { await updateTask({ archived: true }); setSelectedTaskId(undefined) }}>Archive task</button>

@@ -22,6 +22,8 @@ interface ListWorkspaceProps {
   tasks: Task[]
   initialListId?: string
   initialProjectId?: string
+  activeDay: string
+  managedTaskIds: Set<string>
   onLocationChange: (listId?: string, projectId?: string) => void
   onManage: (task: Task, action: TaskAction) => Promise<void>
   onEdit: (taskId: string) => void
@@ -34,6 +36,8 @@ export function ListWorkspace({
   tasks,
   initialListId,
   initialProjectId,
+  activeDay,
+  managedTaskIds,
   onLocationChange,
   onManage,
   onEdit,
@@ -55,7 +59,7 @@ export function ListWorkspace({
     .sort((a, b) => a.position - b.position)
   const listProjects = projects.filter((project) => project.listId === activeListId && !project.archived).sort((a, b) => a.position - b.position)
   const scopedTasks = tasks
-    .filter((task) => task.listId === activeListId && !task.archived)
+    .filter((task) => task.listId === activeListId && (!task.archived || managedTaskIds.has(task.id)))
     .filter((task) => activeProject ? task.projectId === activeProject.id : !task.projectId)
     .filter((task) => task.title.toLowerCase().includes(search.toLowerCase()))
     .sort((a, b) => a.position - b.position)
@@ -130,6 +134,8 @@ export function ListWorkspace({
         tasks={scopedTasks.filter((task) => !task.sectionId || !listSections.some((section) => section.id === task.sectionId))}
         listId={activeList.id}
         projectId={activeProject?.id}
+        activeDay={activeDay}
+        managedTaskIds={managedTaskIds}
         onManage={onManage}
         onEdit={onEdit}
       />
@@ -141,6 +147,8 @@ export function ListWorkspace({
           listId={activeList.id}
           sectionId={section.id}
           projectId={activeProject?.id}
+          activeDay={activeDay}
+          managedTaskIds={managedTaskIds}
           onManage={onManage}
           onEdit={onEdit}
         />
@@ -206,11 +214,13 @@ interface SheetSectionProps {
   listId: string
   sectionId?: string
   projectId?: string
+  activeDay: string
+  managedTaskIds: Set<string>
   onManage: (task: Task, action: TaskAction) => Promise<void>
   onEdit: (taskId: string) => void
 }
 
-function SheetSection({ name, tasks, listId, sectionId, projectId, onManage, onEdit }: SheetSectionProps) {
+function SheetSection({ name, tasks, listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
   const [entry, setEntry] = useState('')
   const [collapsed, setCollapsed] = useState(false)
 
@@ -247,9 +257,12 @@ function SheetSection({ name, tasks, listId, sectionId, projectId, onManage, onE
       {!collapsed && (
         <>
           <div className="raw-table-heading"><span>Done</span><span>Task</span><span>Due</span><span>Repeat</span><span /></div>
-          {tasks.map((task, index) => (
-            <div className="raw-task-row" key={task.id}>
-              <button className="raw-check" type="button" onClick={() => onManage(task, 'completed')} aria-label={`Complete ${task.title}`}><Check size={16} /></button>
+          {tasks.map((task, index) => {
+            const isManaged = managedTaskIds.has(task.id)
+            const isNotDue = task.nextDueAt > activeDay
+            return (
+            <div className={`raw-task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
+              <button className="raw-check" type="button" onClick={() => onManage(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={16} /></button>
               <button className="raw-task-name" type="button" onClick={() => onEdit(task.id)}>{task.title}</button>
               <span>{shortDate(task.nextDueAt)}</span>
               <span>{task.intervalDays ? `${task.intervalDays}${task.fixedInterval ? '!' : ''}d` : '—'}</span>
@@ -259,7 +272,8 @@ function SheetSection({ name, tasks, listId, sectionId, projectId, onManage, onE
                 <button type="button" onClick={() => onEdit(task.id)} aria-label={`Options for ${task.title}`}><MoreHorizontal size={17} /></button>
               </div>
             </div>
-          ))}
+            )
+          })}
           <form className="raw-add-row" onSubmit={addRow}>
             <Plus size={17} />
             <input value={entry} onChange={(event) => setEntry(event.target.value)} placeholder={`Add to ${name}`} aria-label={`Add task to ${name}`} />
