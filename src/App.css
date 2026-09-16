@@ -125,6 +125,7 @@ main { padding: 28px 24px 56px; }
 .raw-check { width: 23px; height: 23px; display: grid; place-items: center; margin-left: 10px; padding: 0; border: 1.5px solid var(--blue-400); border-radius: 4px; color: transparent; background: white; line-height: 0; }
 .raw-check svg { display: block; }
 .raw-check:hover { color: white; background: var(--blue-600); }
+.raw-schedule { color: var(--blue-600); }
 .raw-task-row.not-due .raw-check { border-color: var(--line-strong); }
 .raw-task-row.not-due .raw-task-name { color: var(--muted); }
 .raw-task-row.managed .raw-check { color: white; border-color: var(--blue-600); background: var(--blue-600); }

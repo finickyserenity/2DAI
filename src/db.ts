@@ -49,6 +49,18 @@ class TwoDaiDatabase extends Dexie {
         if (project.includeInPlanner === undefined) project.includeInPlanner = true
       })
     })
+    this.version(5).stores({
+      lists: 'id, position',
+      sections: 'id, listId, projectId, [listId+position]',
+      projects: 'id, listId, archived, [listId+position]',
+      tasks: 'id, listId, sectionId, projectId, nextDueAt, archived, position, updatedAt',
+      events: 'id, taskId, effectiveDate, createdAt',
+      settings: 'key',
+    }).upgrade(async (transaction) => {
+      await transaction.table('tasks').toCollection().modify((task: Task) => {
+        if (!task.intervalDays) task.scheduledForPlanner = false
+      })
+    })
 
     this.on('populate', () => {
       const now = new Date().toISOString()

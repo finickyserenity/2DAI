@@ -133,6 +133,7 @@ function App() {
         effort: 1,
         fixedInterval: parsed.fixedInterval,
         nextDueAt: snapshot.activeDay,
+        scheduledForPlanner: parsed.intervalDays ? undefined : true,
         archived: false,
         createdAt: now,
         updatedAt: now,
@@ -447,6 +448,7 @@ function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, manage
   const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
   return tasks
     .filter((task) => !task.projectId)
+    .filter((task) => Boolean(task.intervalDays) || task.scheduledForPlanner === true)
     .filter((task) => !task.archived || (showCompleted && managedIds.has(task.id)))
     .filter((task) => {
       if (view === 'today') return managedIds.has(task.id) ? showCompleted : task.nextDueAt <= start
@@ -469,6 +471,7 @@ function tasksForProjectView(tasks: Task[], projectId: string, view: PlannerView
   const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
   return tasks
     .filter((task) => task.projectId === projectId && !task.archived && !managedIds.has(task.id))
+    .filter((task) => Boolean(task.intervalDays) || task.scheduledForPlanner === true)
     .filter((task) => {
       if (view === 'today') return task.nextDueAt <= start
       if (view === 'week' && task.intervalDays && task.intervalDays < 7) return false

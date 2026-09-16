@@ -42,6 +42,7 @@ export interface Task {
   weekendPreferredTimeSource?: 'explicit' | 'observed'
   lastCompletedAt?: string
   nextDueAt: string
+  scheduledForPlanner?: boolean
   archived: boolean
   createdAt: string
   updatedAt: string

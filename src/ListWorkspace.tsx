@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { db } from './db'
 import { ImportListDialog } from './ImportListDialog.tsx'
-import { dateKey, isWeekend, parseTaskInput, type ProjectFolder, type Task, type TaskAction, type TaskList, type TaskSection } from './domain'
+import { isWeekend, parseTaskInput, type ProjectFolder, type Task, type TaskAction, type TaskList, type TaskSection } from './domain'
 
 interface ListWorkspaceProps {
   lists: TaskList[]
@@ -338,7 +338,7 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
           : { weekdayPreferredTime: preferredTime, weekdayPreferredTimeSource: preferredTime ? 'explicit' as const : undefined },
         position: Date.now(), effort: 1,
         intervalDays: parsed.intervalDays, fixedInterval: parsed.fixedInterval,
-        nextDueAt: dateKey(new Date()), archived: false,
+        nextDueAt: activeDay, scheduledForPlanner: parsed.intervalDays ? undefined : false, archived: false,
         createdAt: now, updatedAt: now,
       })
     })
@@ -352,6 +352,14 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
     await db.transaction('rw', db.tasks, async () => {
       await db.tasks.update(task.id, { position: other.position })
       await db.tasks.update(other.id, { position: task.position })
+    })
+  }
+
+  async function scheduleTask(task: Task) {
+    await db.tasks.update(task.id, {
+      nextDueAt: activeDay,
+      scheduledForPlanner: true,
+      updatedAt: new Date().toISOString(),
     })
   }
 
@@ -382,9 +390,12 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
           {tasks.map((task, index) => {
             const isManaged = managedTaskIds.has(task.id)
             const isNotDue = task.nextDueAt > activeDay
+            const isUnscheduled = !task.intervalDays && task.scheduledForPlanner !== true
             return (
             <div id={`task-${task.id}`} className={`raw-task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}${focusedTaskId === task.id ? ' focused' : ''}`} key={task.id}>
-              <button className="raw-check" type="button" onClick={() => onManage(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={16} /></button>
+              {isUnscheduled
+                ? <button className="raw-check raw-schedule" type="button" onClick={() => scheduleTask(task)} aria-label={`Add ${task.title} to Today`} title="Add to Today"><Plus size={16} /></button>
+                : <button className="raw-check" type="button" onClick={() => onManage(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={16} /></button>}
               <button className="raw-task-name" type="button" onClick={() => onEdit(task.id)}>{task.title}</button>
               <span>{shortDate(task.nextDueAt)}</span>
               <span>{task.intervalDays ? `${task.intervalDays}${task.fixedInterval ? '!' : ''}d` : '—'}</span>
