@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useState, type FormEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CalendarDays,
@@ -345,8 +345,8 @@ function App() {
 
         {view !== 'sheets' && <section className="task-section" aria-live="polite">
           <div className="section-label">
-            <span>{view === 'today' ? `${visibleTasks.length + dueProjects.length} items` : 'Upcoming, without daily repeats'}</span>
-            {view === 'today' && (
+            <span>{view === 'today' ? `${visibleTasks.length + dueProjects.length} items` : 'Upcoming'}</span>
+            {(view === 'today' || view === 'week' || view === 'month') && (
               <label><input type="checkbox" checked={showCompleted} onChange={(event) => setShowCompleted(event.target.checked)} /> Show managed</label>
             )}
           </div>
@@ -365,33 +365,42 @@ function App() {
                 </article>
               )
             })}
-            {visibleTasks.map((task) => {
+            {visibleTasks.map((task, index) => {
               const list = listById.get(task.listId)
               const managedAction = managedEvents.get(task.id)?.action
               const isManaged = Boolean(managedAction)
               const isNotDue = task.nextDueAt > snapshot.activeDay
               const preferredTime = preferredTimeFor(task, activeDate)
+              const groupDate = isManaged ? snapshot.activeDay : task.nextDueAt
+              const previousTask = visibleTasks[index - 1]
+              const previousGroupDate = previousTask && managedEvents.has(previousTask.id) ? snapshot.activeDay : previousTask?.nextDueAt
+              const groupKey = view === 'month' ? weekGroupKey(groupDate) : groupDate
+              const previousGroupKey = previousGroupDate && (view === 'month' ? weekGroupKey(previousGroupDate) : previousGroupDate)
               return (
-                <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
-                  <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={managedAction === 'completed'} aria-label={`${managedAction === 'completed' ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
-                  <button className="task-copy" type="button" onClick={() => openTaskInList(task)}>
-                    <span className="task-title">{task.title}</span>
-                    <span className="task-meta">
-                      <i style={{ background: list?.color }} /> {list?.name ?? 'Unsorted'}
-                      {preferredTime && <><Clock3 size={13} /> {formatTime(preferredTime)}</>}
-                      {view !== 'today' && <>Due {formatFriendlyDate(new Date(`${task.nextDueAt}T12:00:00`))}</>}
-                    </span>
-                  </button>
-                  <div className="task-actions">
-                    {(!isManaged || managedAction === 'delayed') && <button type="button" onClick={() => manageTask(task, 'delayed')} title={managedAction === 'delayed' ? 'Undo delay' : 'Delay one day'} aria-pressed={managedAction === 'delayed'} aria-label={`${managedAction === 'delayed' ? 'Undo delay for' : 'Delay'} ${task.title}`}><Clock3 size={18} /></button>}
-                    {(!isManaged || managedAction === 'skipped') && <button type="button" onClick={() => manageTask(task, 'skipped')} title={managedAction === 'skipped' ? 'Undo skip' : 'Skip this occurrence'} aria-pressed={managedAction === 'skipped'} aria-label={`${managedAction === 'skipped' ? 'Undo skip for' : 'Skip'} ${task.title}`}><SkipForward size={18} /></button>}
-                    <button type="button" onClick={() => openTaskOptions(task.id)} title="Task options" aria-label={`Options for ${task.title}`}><MoreHorizontal size={19} /></button>
-                  </div>
-                </article>
+                <Fragment key={task.id}>
+                  {view === 'week' && groupDate !== previousGroupDate && <div className="task-day-divider">{formatDayGroup(groupDate, snapshot.activeDay)}</div>}
+                  {view === 'month' && groupKey !== previousGroupKey && <MonthWeekDivider value={groupDate} />}
+                  <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`}>
+                    <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={managedAction === 'completed'} aria-label={`${managedAction === 'completed' ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
+                    <button className="task-copy" type="button" onClick={() => openTaskInList(task)}>
+                      <span className="task-title">{task.title}</span>
+                      <span className="task-meta">
+                        <i style={{ background: list?.color }} /> {list?.name ?? 'Unsorted'}
+                        {preferredTime && <><Clock3 size={13} /> {formatTime(preferredTime)}</>}
+                        {view !== 'today' && <span className="task-due">Due {formatFriendlyDate(new Date(`${task.nextDueAt}T12:00:00`))}</span>}
+                      </span>
+                    </button>
+                    <div className="task-actions">
+                      {(!isManaged || managedAction === 'delayed') && <button type="button" onClick={() => manageTask(task, 'delayed')} title={managedAction === 'delayed' ? 'Undo delay' : 'Delay one day'} aria-pressed={managedAction === 'delayed'} aria-label={`${managedAction === 'delayed' ? 'Undo delay for' : 'Delay'} ${task.title}`}><Clock3 size={18} /></button>}
+                      {(!isManaged || managedAction === 'skipped') && <button type="button" onClick={() => manageTask(task, 'skipped')} title={managedAction === 'skipped' ? 'Undo skip' : 'Skip this occurrence'} aria-pressed={managedAction === 'skipped'} aria-label={`${managedAction === 'skipped' ? 'Undo skip for' : 'Skip'} ${task.title}`}><SkipForward size={18} /></button>}
+                      <button type="button" onClick={() => openTaskOptions(task.id)} title="Task options" aria-label={`Options for ${task.title}`}><MoreHorizontal size={19} /></button>
+                    </div>
+                  </article>
+                </Fragment>
               )
             })}
             {!visibleTasks.length && !dueProjects.length && (
-              <div className="empty-state"><Check size={26} /><strong>Nothing waiting here</strong><span>{view === 'today' ? 'Add a task or take the win.' : 'No non-daily tasks are due in this range.'}</span></div>
+              <div className="empty-state"><Check size={26} /><strong>Nothing waiting here</strong><span>{view === 'today' ? 'Add a task or take the win.' : view === 'week' ? 'No weekly or one-time tasks are due in this range.' : 'No monthly or one-time tasks are due in this range.'}</span></div>
             )}
           </div>
         </section>}
@@ -429,14 +438,57 @@ function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, manage
   return tasks
     .filter((task) => task.plannerVisible !== false)
     .filter((task) => !task.projectId)
-    .filter((task) => !task.archived || (view === 'today' && showCompleted && managedIds.has(task.id)))
+    .filter((task) => !task.archived || (showCompleted && managedIds.has(task.id)))
     .filter((task) => {
       if (view === 'today') return managedIds.has(task.id) ? showCompleted : task.nextDueAt <= start
-      return task.nextDueAt > start && task.nextDueAt <= end && (task.intervalDays ?? 0) > 1
+      if (view === 'week') {
+        if (task.intervalDays && task.intervalDays < 7) return false
+        if (managedIds.has(task.id)) return showCompleted
+        return task.nextDueAt > start && task.nextDueAt <= end
+      }
+      if (task.intervalDays && task.intervalDays < 28) return false
+      if (managedIds.has(task.id)) return showCompleted
+      return task.nextDueAt > start && task.nextDueAt <= end
     })
     .sort((left, right) => view !== 'today'
-      ? left.nextDueAt.localeCompare(right.nextDueAt) || left.position - right.position
+      ? ((view === 'week' || view === 'month') && managedIds.has(left.id) ? start : left.nextDueAt).localeCompare((view === 'week' || view === 'month') && managedIds.has(right.id) ? start : right.nextDueAt) || left.position - right.position
       : (preferredTimeFor(left, activeDate) ?? '99:99').localeCompare(preferredTimeFor(right, activeDate) ?? '99:99') || left.position - right.position)
+}
+
+function formatDayGroup(value: string, activeDay: string): string {
+  if (value === activeDay) return 'Today'
+  return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'short', day: 'numeric' }).format(new Date(`${value}T12:00:00`))
+}
+
+function MonthWeekDivider({ value }: { value: string }) {
+  const date = new Date(`${value}T12:00:00`)
+  const start = startOfIsoWeek(date)
+  const end = addDays(start, 6)
+  const crossesMonth = start.getMonth() !== end.getMonth()
+  const startLabel = new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric' }).format(start)
+  const endLabel = new Intl.DateTimeFormat('en-US', { month: crossesMonth ? 'short' : undefined, day: 'numeric' }).format(end)
+
+  return (
+    <div className="task-week-divider">
+      <span>Week {isoWeekNumber(date)}</span>
+      <span>{startLabel}–{crossesMonth ? <strong>{endLabel}</strong> : endLabel}</span>
+    </div>
+  )
+}
+
+function weekGroupKey(value: string): string {
+  return dateKey(startOfIsoWeek(new Date(`${value}T12:00:00`)))
+}
+
+function startOfIsoWeek(date: Date): Date {
+  const day = date.getDay() || 7
+  return addDays(date, 1 - day)
+}
+
+function isoWeekNumber(date: Date): number {
+  const thursday = addDays(startOfIsoWeek(date), 3)
+  const yearStart = new Date(thursday.getFullYear(), 0, 4, 12)
+  return 1 + Math.round((startOfIsoWeek(thursday).getTime() - startOfIsoWeek(yearStart).getTime()) / 604_800_000)
 }
 
 function formatTime(time: string): string {
