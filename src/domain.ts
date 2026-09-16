@@ -34,6 +34,11 @@ export interface Task {
   intervalDays?: number
   fixedInterval: boolean
   preferredTime?: string
+  preferredTimeSource?: 'explicit' | 'observed'
+  weekdayPreferredTime?: string
+  weekdayPreferredTimeSource?: 'explicit' | 'observed'
+  weekendPreferredTime?: string
+  weekendPreferredTimeSource?: 'explicit' | 'observed'
   lastCompletedAt?: string
   nextDueAt: string
   plannerVisible?: boolean
@@ -51,6 +56,14 @@ export interface TaskEvent {
   previousNextDueAt?: string
   previousLastCompletedAt?: string
   previousArchived?: boolean
+  previousPreferredTime?: string
+  previousPreferredTimeSource?: 'explicit' | 'observed'
+  hasPreferredTimeSnapshot?: boolean
+  previousWeekdayPreferredTime?: string
+  previousWeekdayPreferredTimeSource?: 'explicit' | 'observed'
+  previousWeekendPreferredTime?: string
+  previousWeekendPreferredTimeSource?: 'explicit' | 'observed'
+  hasDayTypeTimeSnapshot?: boolean
 }
 
 export interface AppSetting {
@@ -99,6 +112,17 @@ export function addDays(date: Date, days: number): Date {
   const result = new Date(date)
   result.setDate(result.getDate() + days)
   return result
+}
+
+export function isWeekend(value: Date | string): boolean {
+  const date = typeof value === 'string' ? new Date(`${value}T12:00:00`) : value
+  return date.getDay() === 0 || date.getDay() === 6
+}
+
+export function preferredTimeFor(task: Task, value: Date | string): string | undefined {
+  return isWeekend(value)
+    ? task.weekendPreferredTime ?? task.weekdayPreferredTime ?? task.preferredTime
+    : task.weekdayPreferredTime ?? task.weekendPreferredTime ?? task.preferredTime
 }
 
 export function nextDueDate(task: Task, completedAt: Date): string {

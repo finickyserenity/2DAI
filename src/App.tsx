@@ -19,8 +19,10 @@ import {
   addDays,
   dateKey,
   formatFriendlyDate,
+  isWeekend,
   nextDueDate,
   parseTaskInput,
+  preferredTimeFor,
   type Task,
   type TaskAction,
   type TaskEvent,
@@ -98,7 +100,7 @@ function App() {
         id: crypto.randomUUID(),
         listId: entryListId,
         title: parsed.title,
-        preferredTime: parsed.preferredTime,
+        ...preferredTimeChanges(parsed.preferredTime, snapshot.activeDay, 'explicit'),
         intervalDays: parsed.intervalDays,
         position: Date.now(),
         effort: 1,
@@ -116,7 +118,8 @@ function App() {
     const now = new Date()
     const effectiveDate = snapshot.activeDay
     await db.transaction('rw', db.tasks, db.events, async () => {
-      if (!await db.tasks.get(task.id)) return
+      const storedTask = await db.tasks.get(task.id)
+      if (!storedTask) return
       const existingEvent = managedEvents.get(task.id)
       if (existingEvent) {
         if (existingEvent.action !== action) return
@@ -128,6 +131,20 @@ function App() {
           nextDueAt: existingEvent.previousNextDueAt ?? existingEvent.effectiveDate,
           lastCompletedAt: existingEvent.previousLastCompletedAt ?? previousCompletion?.createdAt,
           archived: existingEvent.previousArchived ?? false,
+          ...existingEvent.hasPreferredTimeSnapshot
+            ? {
+                preferredTime: existingEvent.previousPreferredTime,
+                preferredTimeSource: existingEvent.previousPreferredTimeSource,
+              }
+            : {},
+          ...existingEvent.hasDayTypeTimeSnapshot
+            ? {
+                weekdayPreferredTime: existingEvent.previousWeekdayPreferredTime,
+                weekdayPreferredTimeSource: existingEvent.previousWeekdayPreferredTimeSource,
+                weekendPreferredTime: existingEvent.previousWeekendPreferredTime,
+                weekendPreferredTimeSource: existingEvent.previousWeekendPreferredTimeSource,
+              }
+            : {},
           updatedAt: now.toISOString(),
         })
         return
@@ -139,9 +156,17 @@ function App() {
         action,
         effectiveDate,
         createdAt: now.toISOString(),
-        previousNextDueAt: task.nextDueAt,
-        previousLastCompletedAt: task.lastCompletedAt,
-        previousArchived: task.archived,
+        previousNextDueAt: storedTask.nextDueAt,
+        previousLastCompletedAt: storedTask.lastCompletedAt,
+        previousArchived: storedTask.archived,
+        previousPreferredTime: storedTask.preferredTime,
+        previousPreferredTimeSource: storedTask.preferredTimeSource,
+        hasPreferredTimeSnapshot: true,
+        previousWeekdayPreferredTime: storedTask.weekdayPreferredTime,
+        previousWeekdayPreferredTimeSource: storedTask.weekdayPreferredTimeSource,
+        previousWeekendPreferredTime: storedTask.weekendPreferredTime,
+        previousWeekendPreferredTimeSource: storedTask.weekendPreferredTimeSource,
+        hasDayTypeTimeSnapshot: true,
       })
 
       if (action === 'delayed') {
@@ -153,9 +178,12 @@ function App() {
       }
 
       await db.tasks.update(task.id, {
-        nextDueAt: nextDueDate(task, new Date(`${effectiveDate}T12:00:00`)),
-        lastCompletedAt: action === 'completed' ? now.toISOString() : task.lastCompletedAt,
-        archived: action === 'completed' && !task.intervalDays,
+        nextDueAt: nextDueDate(storedTask, new Date(`${effectiveDate}T12:00:00`)),
+        lastCompletedAt: action === 'completed' ? now.toISOString() : storedTask.lastCompletedAt,
+        archived: action === 'completed' && !storedTask.intervalDays,
+        ...action === 'completed'
+          ? observedTimeChanges(storedTask, effectiveDate, timeKey(now))
+          : {},
         updatedAt: now.toISOString(),
       })
     })
@@ -304,6 +332,7 @@ function App() {
               const managedAction = managedEvents.get(task.id)?.action
               const isManaged = Boolean(managedAction)
               const isNotDue = task.nextDueAt > snapshot.activeDay
+              const preferredTime = preferredTimeFor(task, activeDate)
               return (
                 <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
                   <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={managedAction === 'completed'} aria-label={`${managedAction === 'completed' ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
@@ -311,7 +340,7 @@ function App() {
                     <span className="task-title">{task.title}</span>
                     <span className="task-meta">
                       <i style={{ background: list?.color }} /> {list?.name ?? 'Unsorted'}
-                      {task.preferredTime && <><Clock3 size={13} /> {formatTime(task.preferredTime)}</>}
+                      {preferredTime && <><Clock3 size={13} /> {formatTime(preferredTime)}</>}
                       {view !== 'today' && <>Due {formatFriendlyDate(new Date(`${task.nextDueAt}T12:00:00`))}</>}
                     </span>
                   </button>
@@ -344,7 +373,7 @@ function App() {
               <label>Project<select value={selectedTask.projectId ?? ''} onChange={(event) => updateTask({ projectId: event.target.value || undefined })}><option value="">Top level</option>{snapshot.projects.filter((project) => project.listId === selectedTask.listId && !project.archived).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
               <label>Effort<input type="number" min="1" max="10" value={selectedTask.effort} onChange={(event) => updateTask({ effort: Number(event.target.value) })} /></label>
               <label>Repeat every<input type="number" min="1" placeholder="Days" value={selectedTask.intervalDays ?? ''} onChange={(event) => updateTask({ intervalDays: event.target.value ? Number(event.target.value) : undefined })} /></label>
-              <label>Preferred time<input type="time" value={selectedTask.preferredTime ?? ''} onChange={(event) => updateTask({ preferredTime: event.target.value || undefined })} /></label>
+              <label>{isWeekend(activeDate) ? 'Weekend time' : 'Weekday time'}<input type="time" value={preferredTimeFor(selectedTask, activeDate) ?? ''} onChange={(event) => updateTask(preferredTimeChanges(event.target.value || undefined, activeDate, 'explicit'))} /></label>
               <label>Last completed<input type="date" value={lastCompletedDraft} onClick={() => setLastCompletedTouched(true)} onChange={(event) => { setLastCompletedDraft(event.target.value); setLastCompletedTouched(true) }} /></label>
             </div>
             <label className="toggle-row"><span><strong>Fixed schedule</strong><small>Repeat from the scheduled date, not completion</small></span><input type="checkbox" checked={selectedTask.fixedInterval} onChange={(event) => updateTask({ fixedInterval: event.target.checked })} /></label>
@@ -369,12 +398,33 @@ function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, manage
     })
     .sort((left, right) => view !== 'today'
       ? left.nextDueAt.localeCompare(right.nextDueAt) || left.position - right.position
-      : (left.preferredTime ?? '99:99').localeCompare(right.preferredTime ?? '99:99') || left.position - right.position)
+      : (preferredTimeFor(left, activeDate) ?? '99:99').localeCompare(preferredTimeFor(right, activeDate) ?? '99:99') || left.position - right.position)
 }
 
 function formatTime(time: string): string {
   const [hour, minute] = time.split(':').map(Number)
   return new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit' }).format(new Date(2000, 0, 1, hour, minute))
+}
+
+function timeKey(date: Date): string {
+  return `${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+}
+
+function earliestTime(previous: string | undefined, current: string): string {
+  return previous && previous < current ? previous : current
+}
+
+function preferredTimeChanges(value: string | undefined, day: Date | string, source: 'explicit' | 'observed'): Partial<Task> {
+  return isWeekend(day)
+    ? { weekendPreferredTime: value, weekendPreferredTimeSource: value ? source : undefined }
+    : { weekdayPreferredTime: value, weekdayPreferredTimeSource: value ? source : undefined }
+}
+
+function observedTimeChanges(task: Task, day: Date | string, current: string): Partial<Task> {
+  const weekend = isWeekend(day)
+  const previous = weekend ? task.weekendPreferredTime : task.weekdayPreferredTime
+  const source = weekend ? task.weekendPreferredTimeSource : task.weekdayPreferredTimeSource
+  return source === 'explicit' ? {} : preferredTimeChanges(earliestTime(previous, current), day, 'observed')
 }
 
 export default App

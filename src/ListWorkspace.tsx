@@ -16,7 +16,7 @@ import {
 } from 'lucide-react'
 import { db } from './db'
 import { ImportListDialog } from './ImportListDialog.tsx'
-import { dateKey, parseTaskInput, type ProjectFolder, type Task, type TaskAction, type TaskList, type TaskSection } from './domain'
+import { dateKey, isWeekend, parseTaskInput, type ProjectFolder, type Task, type TaskAction, type TaskList, type TaskSection } from './domain'
 
 interface ListWorkspaceProps {
   lists: TaskList[]
@@ -311,9 +311,13 @@ function SheetSection({ section, name, tasks, sectionTasks = [], listId, section
       if (!await db.lists.get(listId)) return
       if (projectId && !await db.projects.get(projectId)) return
       if (sectionId && !await db.sections.get(sectionId)) return
+      const preferredTime = parsed.preferredTime
       await db.tasks.add({
         id: crypto.randomUUID(), listId, sectionId, projectId, title: parsed.title,
-        preferredTime: parsed.preferredTime, position: Date.now(), effort: 1,
+        ...isWeekend(activeDay)
+          ? { weekendPreferredTime: preferredTime, weekendPreferredTimeSource: preferredTime ? 'explicit' as const : undefined }
+          : { weekdayPreferredTime: preferredTime, weekdayPreferredTimeSource: preferredTime ? 'explicit' as const : undefined },
+        position: Date.now(), effort: 1,
         intervalDays: parsed.intervalDays, fixedInterval: parsed.fixedInterval,
         nextDueAt: dateKey(new Date()), archived: false,
         createdAt: now, updatedAt: now,
