@@ -41,6 +41,7 @@ main { padding: 28px 24px 56px; }
 .task-actions { display: flex; padding-right: 4px; }
 .task-actions button { width: 37px; height: 37px; display: grid; place-items: center; border: 0; border-radius: 5px; color: var(--blue-600); background: transparent; }
 .task-actions button:hover { background: var(--blue-50); }
+.task-actions button[aria-pressed='true'] { color: white; background: var(--blue-600); }
 .project-rollup { background: var(--blue-50); }
 .project-rollup-icon { width: 30px; height: 30px; margin-left: 6px; display: grid; place-items: center; color: var(--blue-700); }
 .rollup-open { width: 40px; height: 40px; display: grid; place-items: center; margin-right: 5px; border: 0; border-radius: 5px; color: var(--blue-700); background: transparent; }

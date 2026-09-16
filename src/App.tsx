@@ -65,14 +65,15 @@ function App() {
   const activeDate = new Date(`${snapshot.activeDay}T12:00:00`)
   const isNewDayAvailable = snapshot.activeDay < today
   const managedEvents = snapshot.events
-    .filter((event) => event.effectiveDate === snapshot.activeDay && event.action !== 'delayed')
+    .filter((event) => event.effectiveDate === snapshot.activeDay)
     .reduce((events, event) => {
       const existing = events.get(event.taskId)
       if (!existing || existing.createdAt < event.createdAt) events.set(event.taskId, event)
       return events
     }, new Map<string, TaskEvent>())
-  const completedIds = new Set(managedEvents.keys())
-  const visibleTasks = view === 'sheets' ? [] : tasksForView(snapshot.tasks, view, activeDate, completedIds, showCompleted)
+  const completedIds = new Set([...managedEvents].filter(([, event]) => event.action === 'completed').map(([taskId]) => taskId))
+  const managedIds = new Set(managedEvents.keys())
+  const visibleTasks = view === 'sheets' ? [] : tasksForView(snapshot.tasks, view, activeDate, managedIds, showCompleted)
   const dueProjects = view === 'today' ? snapshot.projects
     .filter((project) => !project.archived)
     .map((project) => ({
@@ -117,8 +118,8 @@ function App() {
     await db.transaction('rw', db.tasks, db.events, async () => {
       if (!await db.tasks.get(task.id)) return
       const existingEvent = managedEvents.get(task.id)
-      if (existingEvent && action !== 'completed') return
       if (existingEvent) {
+        if (existingEvent.action !== action) return
         const previousCompletion = snapshot.events
           .filter((event) => event.taskId === task.id && event.action === 'completed' && event.createdAt < existingEvent.createdAt)
           .sort((left, right) => right.createdAt.localeCompare(left.createdAt))[0]
@@ -300,11 +301,12 @@ function App() {
             })}
             {visibleTasks.map((task) => {
               const list = listById.get(task.listId)
-              const isManaged = completedIds.has(task.id)
+              const managedAction = managedEvents.get(task.id)?.action
+              const isManaged = Boolean(managedAction)
               const isNotDue = task.nextDueAt > snapshot.activeDay
               return (
                 <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
-                  <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
+                  <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={managedAction === 'completed'} aria-label={`${managedAction === 'completed' ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
                   <button className="task-copy" type="button" onClick={() => openTaskOptions(task.id)}>
                     <span className="task-title">{task.title}</span>
                     <span className="task-meta">
@@ -314,8 +316,8 @@ function App() {
                     </span>
                   </button>
                   <div className="task-actions">
-                    {!isManaged && <button type="button" onClick={() => manageTask(task, 'delayed')} title="Delay one day" aria-label={`Delay ${task.title}`}><Clock3 size={18} /></button>}
-                    {!isManaged && <button type="button" onClick={() => manageTask(task, 'skipped')} title="Skip this occurrence" aria-label={`Skip ${task.title}`}><SkipForward size={18} /></button>}
+                    {(!isManaged || managedAction === 'delayed') && <button type="button" onClick={() => manageTask(task, 'delayed')} title={managedAction === 'delayed' ? 'Undo delay' : 'Delay one day'} aria-pressed={managedAction === 'delayed'} aria-label={`${managedAction === 'delayed' ? 'Undo delay for' : 'Delay'} ${task.title}`}><Clock3 size={18} /></button>}
+                    {(!isManaged || managedAction === 'skipped') && <button type="button" onClick={() => manageTask(task, 'skipped')} title={managedAction === 'skipped' ? 'Undo skip' : 'Skip this occurrence'} aria-pressed={managedAction === 'skipped'} aria-label={`${managedAction === 'skipped' ? 'Undo skip for' : 'Skip'} ${task.title}`}><SkipForward size={18} /></button>}
                     <button type="button" onClick={() => openTaskOptions(task.id)} title="Task options" aria-label={`Options for ${task.title}`}><MoreHorizontal size={19} /></button>
                   </div>
                 </article>
@@ -354,15 +356,15 @@ function App() {
   )
 }
 
-function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, completedIds: Set<string>, showCompleted: boolean): Task[] {
+function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, managedIds: Set<string>, showCompleted: boolean): Task[] {
   const start = dateKey(activeDate)
   const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
   return tasks
     .filter((task) => task.plannerVisible !== false)
     .filter((task) => !task.projectId)
-    .filter((task) => !task.archived || (view === 'today' && showCompleted && completedIds.has(task.id)))
+    .filter((task) => !task.archived || (view === 'today' && showCompleted && managedIds.has(task.id)))
     .filter((task) => {
-      if (view === 'today') return completedIds.has(task.id) ? showCompleted : task.nextDueAt <= start
+      if (view === 'today') return managedIds.has(task.id) ? showCompleted : task.nextDueAt <= start
       return task.nextDueAt > start && task.nextDueAt <= end && (task.intervalDays ?? 0) > 1
     })
     .sort((left, right) => view !== 'today'
