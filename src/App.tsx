@@ -12,6 +12,7 @@ import {
   Plus,
   RotateCcw,
   SkipForward,
+  Star,
 } from 'lucide-react'
 import { db } from './db'
 import { ListWorkspace } from './ListWorkspace'
@@ -376,6 +377,7 @@ function App() {
               const previousGroupDate = previousTask && managedEvents.has(previousTask.id) ? snapshot.activeDay : previousTask?.nextDueAt
               const groupKey = view === 'month' ? weekGroupKey(groupDate) : groupDate
               const previousGroupKey = previousGroupDate && (view === 'month' ? weekGroupKey(previousGroupDate) : previousGroupDate)
+              const isRare = (view === 'week' || view === 'month') && (!task.intervalDays || task.intervalDays >= 180)
               return (
                 <Fragment key={task.id}>
                   {view === 'week' && groupDate !== previousGroupDate && <div className="task-day-divider">{formatDayGroup(groupDate, snapshot.activeDay)}</div>}
@@ -383,7 +385,7 @@ function App() {
                   <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`}>
                     <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={managedAction === 'completed'} aria-label={`${managedAction === 'completed' ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
                     <button className="task-copy" type="button" onClick={() => openTaskInList(task)}>
-                      <span className="task-title">{task.title}</span>
+                      <span className={`task-title${isRare ? ' rare' : ''}`}>{isRare && <Star className="task-title-star" size={15} fill="currentColor" aria-hidden="true" />}{task.title}</span>
                       <span className="task-meta">
                         <i style={{ background: list?.color }} /> {list?.name ?? 'Unsorted'}
                         {preferredTime && <><Clock3 size={13} /> {formatTime(preferredTime)}</>}

@@ -39,6 +39,8 @@ main { padding: 28px 24px 56px; }
 .task-row.managed .complete-button { color: white; border-color: var(--blue-600); background: var(--blue-600); }
 .task-copy { min-width: 0; padding: 12px 4px; text-align: left; border: 0; background: transparent; }
 .task-title { display: block; overflow: hidden; color: var(--ink); font: 650 15px/1.35 var(--body); text-overflow: ellipsis; white-space: nowrap; }
+.task-row .task-title.rare { display: flex; align-items: center; gap: 6px; color: #000; }
+.task-title-star { flex: none; color: #c38b00; }
 .task-meta { display: flex; align-items: center; gap: 6px; margin-top: 5px; color: var(--muted); font-size: 11px; }
 .task-meta i { width: 7px; height: 7px; border-radius: 50%; }
 .task-due { margin-left: 10px; }
