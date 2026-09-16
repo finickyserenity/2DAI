@@ -42,6 +42,8 @@ function App() {
   const [entry, setEntry] = useState('')
   const [entryListId, setEntryListId] = useState('personal')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
+  const [lastCompletedDraft, setLastCompletedDraft] = useState('')
+  const [lastCompletedTouched, setLastCompletedTouched] = useState(false)
   const [showCompleted, setShowCompleted] = useState(false)
   const [sheetListId, setSheetListId] = useState<string>()
   const [sheetProjectId, setSheetProjectId] = useState<string>()
@@ -173,19 +175,33 @@ function App() {
     })
   }
 
-  async function updateLastCompleted(value: string) {
-    if (!selectedTask) return
-    if (!value) {
-      await updateTask({ lastCompletedAt: undefined })
-      return
+  function openTaskOptions(taskId: string) {
+    const task = snapshot.tasks.find((item) => item.id === taskId)
+    setLastCompletedDraft(task?.lastCompletedAt ? dateKey(new Date(task.lastCompletedAt)) : '')
+    setLastCompletedTouched(false)
+    setSelectedTaskId(taskId)
+  }
+
+  function closeTaskOptions() {
+    setSelectedTaskId(undefined)
+    setLastCompletedTouched(false)
+  }
+
+  async function saveTaskOptions() {
+    if (selectedTask && lastCompletedTouched) {
+      if (!lastCompletedDraft) {
+        await updateTask({ lastCompletedAt: undefined })
+      } else {
+        const completedAt = new Date(`${lastCompletedDraft}T12:00:00`)
+        await updateTask({
+          lastCompletedAt: completedAt.toISOString(),
+          ...selectedTask.intervalDays
+            ? { nextDueAt: dateKey(addDays(completedAt, selectedTask.intervalDays)), archived: false }
+            : {},
+        })
+      }
     }
-    const completedAt = new Date(`${value}T12:00:00`)
-    await updateTask({
-      lastCompletedAt: completedAt.toISOString(),
-      ...selectedTask.intervalDays
-        ? { nextDueAt: dateKey(addDays(completedAt, selectedTask.intervalDays)), archived: false }
-        : {},
-    })
+    closeTaskOptions()
   }
 
   function openSheet(listId?: string, projectId?: string) {
@@ -237,7 +253,7 @@ function App() {
             managedTaskIds={completedIds}
             onLocationChange={openSheet}
             onManage={manageTask}
-            onEdit={setSelectedTaskId}
+            onEdit={openTaskOptions}
           />
         )}
 
@@ -289,7 +305,7 @@ function App() {
               return (
                 <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
                   <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
-                  <button className="task-copy" type="button" onClick={() => setSelectedTaskId(task.id)}>
+                  <button className="task-copy" type="button" onClick={() => openTaskOptions(task.id)}>
                     <span className="task-title">{task.title}</span>
                     <span className="task-meta">
                       <i style={{ background: list?.color }} /> {list?.name ?? 'Unsorted'}
@@ -300,7 +316,7 @@ function App() {
                   <div className="task-actions">
                     {!isManaged && <button type="button" onClick={() => manageTask(task, 'delayed')} title="Delay one day" aria-label={`Delay ${task.title}`}><Clock3 size={18} /></button>}
                     {!isManaged && <button type="button" onClick={() => manageTask(task, 'skipped')} title="Skip this occurrence" aria-label={`Skip ${task.title}`}><SkipForward size={18} /></button>}
-                    <button type="button" onClick={() => setSelectedTaskId(task.id)} title="Task options" aria-label={`Options for ${task.title}`}><MoreHorizontal size={19} /></button>
+                    <button type="button" onClick={() => openTaskOptions(task.id)} title="Task options" aria-label={`Options for ${task.title}`}><MoreHorizontal size={19} /></button>
                   </div>
                 </article>
               )
@@ -313,12 +329,12 @@ function App() {
       </main>
 
       {selectedTask && (
-        <div className="sheet-backdrop" role="presentation" onMouseDown={() => setSelectedTaskId(undefined)}>
+        <div className="sheet-backdrop" role="presentation" onMouseDown={closeTaskOptions}>
           <section className="options-sheet" role="dialog" aria-modal="true" aria-labelledby="options-title" onMouseDown={(event) => event.stopPropagation()}>
             <div className="sheet-handle" />
             <div className="sheet-heading">
               <div><p className="eyebrow">Task options</p><h3 id="options-title">{selectedTask.title}</h3></div>
-              <button className="text-button" type="button" onClick={() => setSelectedTaskId(undefined)}>Done</button>
+              <button className="text-button" type="button" onClick={saveTaskOptions}>Done</button>
             </div>
             <div className="option-grid">
               <label>List<select value={selectedTask.listId} onChange={(event) => updateTask({ listId: event.target.value })}>{snapshot.lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}</select></label>
@@ -327,10 +343,10 @@ function App() {
               <label>Effort<input type="number" min="1" max="10" value={selectedTask.effort} onChange={(event) => updateTask({ effort: Number(event.target.value) })} /></label>
               <label>Repeat every<input type="number" min="1" placeholder="Days" value={selectedTask.intervalDays ?? ''} onChange={(event) => updateTask({ intervalDays: event.target.value ? Number(event.target.value) : undefined })} /></label>
               <label>Preferred time<input type="time" value={selectedTask.preferredTime ?? ''} onChange={(event) => updateTask({ preferredTime: event.target.value || undefined })} /></label>
-              <label>Last completed<input type="date" value={selectedTask.lastCompletedAt ? dateKey(new Date(selectedTask.lastCompletedAt)) : ''} onChange={(event) => updateLastCompleted(event.target.value)} /></label>
+              <label>Last completed<input type="date" value={lastCompletedDraft} onClick={() => setLastCompletedTouched(true)} onChange={(event) => { setLastCompletedDraft(event.target.value); setLastCompletedTouched(true) }} /></label>
             </div>
             <label className="toggle-row"><span><strong>Fixed schedule</strong><small>Repeat from the scheduled date, not completion</small></span><input type="checkbox" checked={selectedTask.fixedInterval} onChange={(event) => updateTask({ fixedInterval: event.target.checked })} /></label>
-            <button className="archive-button" type="button" onClick={async () => { await updateTask({ archived: true }); setSelectedTaskId(undefined) }}>Archive task</button>
+            <button className="archive-button" type="button" onClick={async () => { await updateTask({ archived: true }); closeTaskOptions() }}>Archive task</button>
           </section>
         </div>
       )}
