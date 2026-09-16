@@ -52,6 +52,7 @@ function App() {
   const [entry, setEntry] = useState('')
   const [entryListId, setEntryListId] = useState('personal')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
+  const [taskTitleDraft, setTaskTitleDraft] = useState('')
   const [lastCompletedDraft, setLastCompletedDraft] = useState('')
   const [lastCompletedTouched, setLastCompletedTouched] = useState(false)
   const [showCompleted, setShowCompleted] = useState(false)
@@ -232,6 +233,7 @@ function App() {
 
   function openTaskOptions(taskId: string) {
     const task = snapshot.tasks.find((item) => item.id === taskId)
+    setTaskTitleDraft(task?.title ?? '')
     setLastCompletedDraft(task?.lastCompletedAt ? dateKey(new Date(task.lastCompletedAt)) : '')
     setLastCompletedTouched(false)
     setSelectedTaskId(taskId)
@@ -243,18 +245,23 @@ function App() {
   }
 
   async function saveTaskOptions() {
-    if (selectedTask && lastCompletedTouched) {
-      if (!lastCompletedDraft) {
-        await updateTask({ lastCompletedAt: undefined })
-      } else {
-        const completedAt = new Date(`${lastCompletedDraft}T12:00:00`)
-        await updateTask({
-          lastCompletedAt: completedAt.toISOString(),
-          ...selectedTask.intervalDays
-            ? { nextDueAt: dateKey(addDays(completedAt, selectedTask.intervalDays)), archived: false }
-            : {},
-        })
+    if (selectedTask) {
+      const title = taskTitleDraft.trim()
+      if (!title) return
+      const changes: Partial<Task> = title !== selectedTask.title ? { title } : {}
+      if (lastCompletedTouched) {
+        if (!lastCompletedDraft) {
+          changes.lastCompletedAt = undefined
+        } else {
+          const completedAt = new Date(`${lastCompletedDraft}T12:00:00`)
+          changes.lastCompletedAt = completedAt.toISOString()
+          if (selectedTask.intervalDays) {
+            changes.nextDueAt = dateKey(addDays(completedAt, selectedTask.intervalDays))
+            changes.archived = false
+          }
+        }
       }
+      if (Object.keys(changes).length) await updateTask(changes)
     }
     closeTaskOptions()
   }
@@ -414,9 +421,10 @@ function App() {
             <div className="sheet-handle" />
             <div className="sheet-heading">
               <div><p className="eyebrow">Task options</p><h3 id="options-title">{selectedTask.title}</h3></div>
-              <button className="text-button" type="button" onClick={saveTaskOptions}>Done</button>
+              <button className="text-button" type="button" disabled={!taskTitleDraft.trim()} onClick={saveTaskOptions}>Done</button>
             </div>
             <div className="option-grid">
+              <label className="subject-field">Subject<input value={taskTitleDraft} onChange={(event) => setTaskTitleDraft(event.target.value)} /></label>
               <label>List<select value={selectedTask.listId} onChange={(event) => updateTask({ listId: event.target.value })}>{snapshot.lists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}</select></label>
               <label>Section<select value={selectedTask.sectionId ?? ''} onChange={(event) => updateTask({ sectionId: event.target.value || undefined })}><option value="">Todo</option>{snapshot.sections.filter((section) => section.listId === selectedTask.listId).map((section) => <option key={section.id} value={section.id}>{section.name}</option>)}</select></label>
               <label>Project<select value={selectedTask.projectId ?? ''} onChange={(event) => updateTask({ projectId: event.target.value || undefined })}><option value="">Top level</option>{snapshot.projects.filter((project) => project.listId === selectedTask.listId && !project.archived).map((project) => <option key={project.id} value={project.id}>{project.name}</option>)}</select></label>
