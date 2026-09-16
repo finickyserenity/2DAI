@@ -33,7 +33,6 @@ export async function replaceListFromPreview(preview: GoogleSheetsImportPreview)
         fixedInterval: task.fixedInterval,
         lastCompletedAt: task.lastCompletedAt,
         nextDueAt: task.nextDueAt,
-        plannerVisible: task.plannerVisible,
         archived: task.archived,
         createdAt: now,
         updatedAt: now,

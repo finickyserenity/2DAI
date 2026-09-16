@@ -81,6 +81,8 @@ main { padding: 28px 24px 56px; }
 .list-titlebar span { color: var(--muted); font-size: 12px; }
 .list-titlebar > button, .list-title-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 12px; border: 1px solid var(--blue-200); border-radius: 5px; color: var(--blue-700); background: white; font-weight: 700; }
 .list-title-actions { display: flex; gap: 8px; }
+.project-planner-toggle { display: flex; align-items: center; gap: 7px; min-height: 38px; padding: 8px 12px; box-sizing: border-box; border: 1px solid var(--blue-200); border-radius: 5px; color: var(--blue-700); background: white; font-size: 13px; font-weight: 700; }
+.project-planner-toggle input { width: 17px; height: 17px; margin: 0; accent-color: var(--blue-600); }
 .list-title-actions .danger-button { color: #a33c43; border-color: #e3c5c8; }
 .list-title-actions .danger-button:disabled { color: var(--line-strong); border-color: var(--line); cursor: default; }
 .list-index-actions { display: flex; gap: 8px; }

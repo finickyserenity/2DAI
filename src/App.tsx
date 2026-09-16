@@ -103,13 +103,13 @@ function App() {
   const completedIds = new Set([...managedEvents].filter(([, event]) => event.action === 'completed').map(([taskId]) => taskId))
   const managedIds = new Set(managedEvents.keys())
   const visibleTasks = view === 'sheets' ? [] : tasksForView(snapshot.tasks, view, activeDate, managedIds, showCompleted)
-  const dueProjects = view === 'today' ? snapshot.projects
-    .filter((project) => !project.archived)
+  const dueProjects = view === 'sheets' ? [] : snapshot.projects
+    .filter((project) => !project.archived && project.includeInPlanner !== false)
     .map((project) => ({
       project,
-      tasks: snapshot.tasks.filter((task) => task.projectId === project.id && !task.archived && task.nextDueAt <= snapshot.activeDay && !completedIds.has(task.id)),
+      tasks: tasksForProjectView(snapshot.tasks, project.id, view, activeDate, managedIds),
     }))
-    .filter((group) => group.tasks.length > 0) : []
+    .filter((group) => group.tasks.length > 0)
   const listById = new Map(snapshot.lists.map((list) => [list.id, list]))
   const effort = visibleTasks.reduce((sum, task) => sum + task.effort, 0)
     + dueProjects.flatMap((group) => group.tasks).reduce((sum, task) => sum + task.effort, 0)
@@ -446,7 +446,6 @@ function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, manage
   const start = dateKey(activeDate)
   const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
   return tasks
-    .filter((task) => task.plannerVisible !== false)
     .filter((task) => !task.projectId)
     .filter((task) => !task.archived || (showCompleted && managedIds.has(task.id)))
     .filter((task) => {
@@ -463,6 +462,19 @@ function tasksForView(tasks: Task[], view: PlannerView, activeDate: Date, manage
     .sort((left, right) => view !== 'today'
       ? ((view === 'week' || view === 'month') && managedIds.has(left.id) ? start : left.nextDueAt).localeCompare((view === 'week' || view === 'month') && managedIds.has(right.id) ? start : right.nextDueAt) || left.position - right.position
       : (preferredTimeFor(left, activeDate) ?? '99:99').localeCompare(preferredTimeFor(right, activeDate) ?? '99:99') || left.position - right.position)
+}
+
+function tasksForProjectView(tasks: Task[], projectId: string, view: PlannerView, activeDate: Date, managedIds: Set<string>): Task[] {
+  const start = dateKey(activeDate)
+  const end = dateKey(addDays(activeDate, view === 'week' ? 7 : 31))
+  return tasks
+    .filter((task) => task.projectId === projectId && !task.archived && !managedIds.has(task.id))
+    .filter((task) => {
+      if (view === 'today') return task.nextDueAt <= start
+      if (view === 'week' && task.intervalDays && task.intervalDays < 7) return false
+      if (view === 'month' && task.intervalDays && task.intervalDays < 28) return false
+      return task.nextDueAt > start && task.nextDueAt <= end
+    })
 }
 
 function formatDayGroup(value: string, activeDay: string): string {

@@ -20,6 +20,7 @@ export interface ProjectFolder {
   listId: string
   name: string
   position: number
+  includeInPlanner?: boolean
   archived: boolean
 }
 
@@ -41,7 +42,6 @@ export interface Task {
   weekendPreferredTimeSource?: 'explicit' | 'observed'
   lastCompletedAt?: string
   nextDueAt: string
-  plannerVisible?: boolean
   archived: boolean
   createdAt: string
   updatedAt: string

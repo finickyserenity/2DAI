@@ -5,7 +5,7 @@ export interface GoogleSheetsImportOptions {
   year?: number
 }
 
-export interface ImportedTask extends Pick<Task, 'title' | 'effort' | 'intervalDays' | 'fixedInterval' | 'nextDueAt' | 'plannerVisible' | 'lastCompletedAt' | 'archived'> {
+export interface ImportedTask extends Pick<Task, 'title' | 'effort' | 'intervalDays' | 'fixedInterval' | 'nextDueAt' | 'lastCompletedAt' | 'archived'> {
   sourceRow: number
 }
 
@@ -93,7 +93,6 @@ export function parseGoogleSheetsTsv(text: string, options: GoogleSheetsImportOp
           intervalDays: interval.days,
           fixedInterval: interval.fixed,
           nextDueAt: inferNextDue(lastDone, interval.days, isDue),
-          plannerVisible: isDue || Boolean(interval.days),
           lastCompletedAt: completed?.toISOString(),
           archived,
           sourceRow,

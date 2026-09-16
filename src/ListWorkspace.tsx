@@ -95,7 +95,7 @@ export function ListWorkspace({
     } else {
       const created = await db.transaction('rw', db.lists, db.projects, async () => {
         if (!await db.lists.get(activeListId)) return false
-        await db.projects.add({ id, listId: activeListId, name, position: Date.now(), archived: false })
+        await db.projects.add({ id, listId: activeListId, name, position: Date.now(), includeInPlanner: true, archived: false })
         return true
       })
       if (created) onLocationChange(activeListId, id)
@@ -118,6 +118,11 @@ export function ListWorkspace({
       return true
     })
     if (deleted) onLocationChange(activeListId)
+  }
+
+  async function setProjectPlannerInclusion(includeInPlanner: boolean) {
+    if (!activeProject) return
+    await db.projects.update(activeProject.id, { includeInPlanner })
   }
 
   async function deleteList() {
@@ -153,6 +158,7 @@ export function ListWorkspace({
           <span>{scopedTasks.length} visible tasks</span>
         </div>
         <div className="list-title-actions">
+          {activeProject && <label className="project-planner-toggle"><input key={activeProject.id} type="checkbox" defaultChecked={activeProject.includeInPlanner !== false} onChange={(event) => setProjectPlannerInclusion(event.target.checked)} /> Show in planner</label>}
           {!activeProject && <button type="button" onClick={() => setCreationMode('project')}><FolderKanban size={17} /> New project</button>}
           <button type="button" onClick={() => setCreationMode('section')}><Plus size={17} /> New section</button>
           {!activeProject && <button className="danger-button" type="button" disabled={!canDeleteList} onClick={deleteList} title={canDeleteList ? 'Delete list and its archived tasks' : 'Archive every task before deleting this list'}><Trash2 size={17} /> Delete list</button>}
