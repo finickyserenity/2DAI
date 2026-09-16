@@ -110,6 +110,7 @@ main { padding: 28px 24px 56px; }
 .raw-table-heading { min-height: 27px; color: var(--muted); background: #fafbfc; font-size: 10px; font-weight: 700; text-transform: uppercase; }
 .raw-table-heading span { padding: 0 8px; }
 .raw-task-row { min-height: 42px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12px; }
+.raw-task-row.focused { background: var(--blue-50); box-shadow: inset 3px 0 var(--blue-600); }
 .raw-task-row > * { min-width: 0; }
 .raw-check { width: 23px; height: 23px; display: grid; place-items: center; margin-left: 10px; padding: 0; border: 1.5px solid var(--blue-400); border-radius: 4px; color: transparent; background: white; line-height: 0; }
 .raw-check svg { display: block; }

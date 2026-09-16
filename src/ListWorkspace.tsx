@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import {
   ArrowDown,
   ArrowLeft,
@@ -25,6 +25,7 @@ interface ListWorkspaceProps {
   tasks: Task[]
   initialListId?: string
   initialProjectId?: string
+  focusedTaskId?: string
   activeDay: string
   managedTaskIds: Set<string>
   onLocationChange: (listId?: string, projectId?: string) => void
@@ -39,6 +40,7 @@ export function ListWorkspace({
   tasks,
   initialListId,
   initialProjectId,
+  focusedTaskId,
   activeDay,
   managedTaskIds,
   onLocationChange,
@@ -50,6 +52,14 @@ export function ListWorkspace({
   const [creationName, setCreationName] = useState('')
   const activeList = lists.find((list) => list.id === initialListId)
   const activeProject = projects.find((project) => project.id === initialProjectId)
+
+  useEffect(() => {
+    if (!focusedTaskId) return
+    const frame = requestAnimationFrame(() => {
+      document.getElementById(`task-${focusedTaskId}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+    return () => cancelAnimationFrame(frame)
+  }, [focusedTaskId, initialListId, initialProjectId])
 
   if (!activeList) {
     return <ListIndex lists={lists} tasks={tasks} projects={projects} onOpen={(listId) => onLocationChange(listId)} />
@@ -182,6 +192,7 @@ export function ListWorkspace({
       <SheetSection
         name="Todo"
         tasks={scopedTasks.filter((task) => !task.sectionId || !listSections.some((section) => section.id === task.sectionId))}
+        focusedTaskId={focusedTaskId}
         listId={activeList.id}
         projectId={activeProject?.id}
         activeDay={activeDay}
@@ -196,6 +207,7 @@ export function ListWorkspace({
           name={section.name}
           tasks={scopedTasks.filter((task) => task.sectionId === section.id)}
           sectionTasks={tasks.filter((task) => task.sectionId === section.id)}
+          focusedTaskId={focusedTaskId}
           listId={activeList.id}
           sectionId={section.id}
           projectId={activeProject?.id}
@@ -265,6 +277,7 @@ interface SheetSectionProps {
   name: string
   tasks: Task[]
   sectionTasks?: Task[]
+  focusedTaskId?: string
   listId: string
   sectionId?: string
   projectId?: string
@@ -274,7 +287,7 @@ interface SheetSectionProps {
   onEdit: (taskId: string) => void
 }
 
-function SheetSection({ section, name, tasks, sectionTasks = [], listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
+function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
   const [entry, setEntry] = useState('')
   const [collapsed, setCollapsed] = useState(false)
   const [renaming, setRenaming] = useState(false)
@@ -364,7 +377,7 @@ function SheetSection({ section, name, tasks, sectionTasks = [], listId, section
             const isManaged = managedTaskIds.has(task.id)
             const isNotDue = task.nextDueAt > activeDay
             return (
-            <div className={`raw-task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
+            <div id={`task-${task.id}`} className={`raw-task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}${focusedTaskId === task.id ? ' focused' : ''}`} key={task.id}>
               <button className="raw-check" type="button" onClick={() => onManage(task, 'completed')} aria-pressed={isManaged} aria-label={`${isManaged ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={16} /></button>
               <button className="raw-task-name" type="button" onClick={() => onEdit(task.id)}>{task.title}</button>
               <span>{shortDate(task.nextDueAt)}</span>

@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CalendarDays,
@@ -32,6 +32,13 @@ import './App.css'
 type PlannerView = 'today' | 'week' | 'month'
 type View = PlannerView | 'sheets'
 
+interface AppLocation {
+  view: View
+  listId?: string
+  projectId?: string
+  taskId?: string
+}
+
 const viewLabels: Record<View, string> = {
   today: 'Today',
   week: 'Week',
@@ -49,6 +56,24 @@ function App() {
   const [showCompleted, setShowCompleted] = useState(false)
   const [sheetListId, setSheetListId] = useState<string>()
   const [sheetProjectId, setSheetProjectId] = useState<string>()
+  const [sheetTaskId, setSheetTaskId] = useState<string>()
+
+  useEffect(() => {
+    function applyLocation(location: AppLocation) {
+      setView(location.view)
+      setSheetListId(location.listId)
+      setSheetProjectId(location.projectId)
+      setSheetTaskId(location.taskId)
+    }
+
+    function handlePopState(event: PopStateEvent) {
+      const location = event.state?.twoDaiLocation as AppLocation | undefined
+      if (location) applyLocation(location)
+    }
+
+    window.addEventListener('popstate', handlePopState)
+    return () => window.removeEventListener('popstate', handlePopState)
+  }, [])
 
   const snapshot = useLiveQuery(async () => {
     const [tasks, lists, sections, projects, activeDaySetting, userNameSetting, events] = await Promise.all([
@@ -236,6 +261,18 @@ function App() {
   function openSheet(listId?: string, projectId?: string) {
     setSheetListId(listId)
     setSheetProjectId(projectId)
+    setSheetTaskId(undefined)
+    setView('sheets')
+  }
+
+  function openTaskInList(task: Task) {
+    const currentLocation: AppLocation = { view, listId: sheetListId, projectId: sheetProjectId, taskId: sheetTaskId }
+    const destination: AppLocation = { view: 'sheets', listId: task.listId, projectId: task.projectId, taskId: task.id }
+    window.history.replaceState({ ...window.history.state, twoDaiLocation: currentLocation }, '')
+    window.history.pushState({ twoDaiLocation: destination }, '')
+    setSheetListId(task.listId)
+    setSheetProjectId(task.projectId)
+    setSheetTaskId(task.id)
     setView('sheets')
   }
 
@@ -278,6 +315,7 @@ function App() {
             tasks={snapshot.tasks}
             initialListId={sheetListId}
             initialProjectId={sheetProjectId}
+            focusedTaskId={sheetTaskId}
             activeDay={snapshot.activeDay}
             managedTaskIds={completedIds}
             onLocationChange={openSheet}
@@ -336,7 +374,7 @@ function App() {
               return (
                 <article className={`task-row${isManaged ? ' managed' : ''}${isNotDue ? ' not-due' : ''}`} key={task.id}>
                   <button className="complete-button" type="button" onClick={() => manageTask(task, 'completed')} aria-pressed={managedAction === 'completed'} aria-label={`${managedAction === 'completed' ? 'Uncheck' : 'Complete'} ${task.title}`}><Check size={20} /></button>
-                  <button className="task-copy" type="button" onClick={() => openTaskOptions(task.id)}>
+                  <button className="task-copy" type="button" onClick={() => openTaskInList(task)}>
                     <span className="task-title">{task.title}</span>
                     <span className="task-meta">
                       <i style={{ background: list?.color }} /> {list?.name ?? 'Unsorted'}
