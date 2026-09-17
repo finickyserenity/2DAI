@@ -2,6 +2,23 @@ import Dexie, { type EntityTable } from 'dexie'
 import type { AppSetting, ProjectFolder, Task, TaskEvent, TaskList, TaskSection } from './domain'
 import { dateKey } from './domain'
 
+const BACKUP_FORMAT = '2dai-backup'
+const BACKUP_VERSION = 1
+
+export interface TwoDaiBackup {
+  format: typeof BACKUP_FORMAT
+  version: typeof BACKUP_VERSION
+  exportedAt: string
+  data: {
+    lists: TaskList[]
+    sections: TaskSection[]
+    projects: ProjectFolder[]
+    tasks: Task[]
+    events: TaskEvent[]
+    settings: AppSetting[]
+  }
+}
+
 class TwoDaiDatabase extends Dexie {
   lists!: EntityTable<TaskList, 'id'>
   sections!: EntityTable<TaskSection, 'id'>
@@ -111,3 +128,58 @@ function makeTask(
 }
 
 export const db = new TwoDaiDatabase()
+
+export async function createBackup(): Promise<TwoDaiBackup> {
+  const [lists, sections, projects, tasks, events, settings] = await db.transaction(
+    'r',
+    db.tables,
+    () => Promise.all([
+      db.lists.toArray(),
+      db.sections.toArray(),
+      db.projects.toArray(),
+      db.tasks.toArray(),
+      db.events.toArray(),
+      db.settings.toArray(),
+    ]),
+  )
+
+  return {
+    format: BACKUP_FORMAT,
+    version: BACKUP_VERSION,
+    exportedAt: new Date().toISOString(),
+    data: { lists, sections, projects, tasks, events, settings },
+  }
+}
+
+export async function restoreBackup(value: unknown): Promise<void> {
+  if (!isBackup(value)) throw new Error('This file is not a valid 2dai backup.')
+
+  await db.transaction('rw', db.tables, async () => {
+    await Promise.all(db.tables.map((table) => table.clear()))
+    await db.lists.bulkAdd(value.data.lists)
+    await db.sections.bulkAdd(value.data.sections)
+    await db.projects.bulkAdd(value.data.projects)
+    await db.tasks.bulkAdd(value.data.tasks)
+    await db.events.bulkAdd(value.data.events)
+    await db.settings.bulkAdd(value.data.settings)
+  })
+}
+
+function isBackup(value: unknown): value is TwoDaiBackup {
+  if (!isRecord(value) || value.format !== BACKUP_FORMAT || value.version !== BACKUP_VERSION || !isRecord(value.data)) return false
+  const { lists, sections, projects, tasks, events, settings } = value.data
+  return isRecordArray(lists, ['id', 'name', 'color', 'position'])
+    && isRecordArray(sections, ['id', 'listId', 'name', 'position'])
+    && isRecordArray(projects, ['id', 'listId', 'name', 'position', 'archived'])
+    && isRecordArray(tasks, ['id', 'listId', 'title', 'position', 'effort', 'fixedInterval', 'nextDueAt', 'archived', 'createdAt', 'updatedAt'])
+    && isRecordArray(events, ['id', 'taskId', 'action', 'effectiveDate', 'createdAt'])
+    && isRecordArray(settings, ['key', 'value'])
+}
+
+function isRecordArray(value: unknown, requiredKeys: string[]): value is Record<string, unknown>[] {
+  return Array.isArray(value) && value.every((item) => isRecord(item) && requiredKeys.every((key) => key in item))
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}

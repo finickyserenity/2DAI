@@ -1,20 +1,25 @@
-import { Fragment, useEffect, useState, type FormEvent } from 'react'
+import { Fragment, useEffect, useRef, useState, type ChangeEvent, type FormEvent } from 'react'
 import { useLiveQuery } from 'dexie-react-hooks'
 import {
   CalendarDays,
   Check,
   ChevronRight,
   Clock3,
+  Download,
   FolderKanban,
   LibraryBig,
   ListTodo,
+  Menu,
   MoreHorizontal,
   Plus,
   RotateCcw,
+  Settings,
   SkipForward,
   Star,
+  Upload,
+  X,
 } from 'lucide-react'
-import { db } from './db'
+import { createBackup, db, restoreBackup } from './db'
 import { ListWorkspace } from './ListWorkspace'
 import {
   addDays,
@@ -59,6 +64,10 @@ function App() {
   const [sheetListId, setSheetListId] = useState<string>()
   const [sheetProjectId, setSheetProjectId] = useState<string>()
   const [sheetTaskId, setSheetTaskId] = useState<string>()
+  const [settingsOpen, setSettingsOpen] = useState(false)
+  const [backupMessage, setBackupMessage] = useState('')
+  const [isImporting, setIsImporting] = useState(false)
+  const backupInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     function applyLocation(location: AppLocation) {
@@ -76,6 +85,15 @@ function App() {
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
   }, [])
+
+  useEffect(() => {
+    if (!settingsOpen) return
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') setSettingsOpen(false)
+    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [settingsOpen])
 
   const snapshot = useLiveQuery(async () => {
     const [tasks, lists, sections, projects, activeDaySetting, userNameSetting, events] = await Promise.all([
@@ -221,6 +239,41 @@ function App() {
     await db.settings.put({ key: 'activeDay', value: today })
   }
 
+  async function exportData() {
+    const backup = await createBackup()
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `2dai-backup-${dateKey(new Date())}.json`
+    link.click()
+    URL.revokeObjectURL(url)
+    setBackupMessage('Backup downloaded.')
+  }
+
+  async function importData(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+
+    setBackupMessage('')
+    setIsImporting(true)
+    try {
+      const backup: unknown = JSON.parse(await file.text())
+      if (!window.confirm('Importing this backup will replace all data currently stored on this device. Continue?')) return
+      await restoreBackup(backup)
+      setSelectedTaskId(undefined)
+      setSheetListId(undefined)
+      setSheetProjectId(undefined)
+      setSheetTaskId(undefined)
+      setBackupMessage('Backup restored successfully.')
+    } catch (error) {
+      setBackupMessage(error instanceof Error ? error.message : 'The backup could not be imported.')
+    } finally {
+      setIsImporting(false)
+    }
+  }
+
   async function updateTask(changes: Partial<Task>) {
     if (!selectedTask) return
     await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, async () => {
@@ -293,7 +346,45 @@ function App() {
           <p className="eyebrow">Your day</p>
           <h1>{snapshot.userName}</h1>
         </div>
+        <button
+          className="menu-button"
+          type="button"
+          onClick={() => { setSettingsOpen((open) => !open); setBackupMessage('') }}
+          aria-expanded={settingsOpen}
+          aria-controls="settings-panel"
+          aria-label={settingsOpen ? 'Close settings' : 'Open menu'}
+        >
+          {settingsOpen ? <X size={22} /> : <Menu size={22} />}
+        </button>
       </header>
+
+      {settingsOpen && (
+        <>
+          <div className="settings-backdrop" role="presentation" onClick={() => setSettingsOpen(false)} />
+          <aside className="settings-panel" id="settings-panel" aria-labelledby="settings-title">
+            <nav className="settings-tabs" aria-label="Menu sections">
+              <button className="active" type="button"><Settings size={17} />Settings</button>
+            </nav>
+            <div className="settings-content">
+              <p className="eyebrow">Data management</p>
+              <h2 id="settings-title">Settings</h2>
+              <p className="settings-intro">Download a complete backup or restore your data on this device.</p>
+              <div className="backup-actions">
+                <button type="button" onClick={exportData}>
+                  <Download size={19} />
+                  <span><strong>Export data</strong><small>Download a JSON backup</small></span>
+                </button>
+                <button type="button" onClick={() => backupInputRef.current?.click()} disabled={isImporting}>
+                  <Upload size={19} />
+                  <span><strong>{isImporting ? 'Importing…' : 'Import data'}</strong><small>Restore from a JSON backup</small></span>
+                </button>
+                <input ref={backupInputRef} className="sr-only" type="file" accept="application/json,.json" onChange={importData} />
+              </div>
+              {backupMessage && <p className="backup-message" role="status">{backupMessage}</p>}
+            </div>
+          </aside>
+        </>
+      )}
 
       <main className={view === 'sheets' ? 'lists-main' : ''}>
         {view !== 'sheets' && <section className="day-heading">
