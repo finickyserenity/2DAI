@@ -135,7 +135,7 @@ function App() {
 
   async function addTask(event: FormEvent) {
     event.preventDefault()
-    const parsed = parseTaskInput(entry)
+    const parsed = parseTaskInput(entry, snapshot.activeDay)
     if (!parsed.title) return
 
     const now = new Date().toISOString()
@@ -150,7 +150,7 @@ function App() {
         position: Date.now(),
         effort: 1,
         fixedInterval: parsed.fixedInterval,
-        nextDueAt: snapshot.activeDay,
+        nextDueAt: parsed.dueDate ?? snapshot.activeDay,
         scheduledForPlanner: parsed.intervalDays ? undefined : true,
         archived: false,
         createdAt: now,
@@ -523,6 +523,7 @@ function App() {
               <label>Effort<input type="number" min="1" max="10" value={selectedTask.effort} onChange={(event) => updateTask({ effort: Number(event.target.value) })} /></label>
               <label>Repeat every<input type="number" min="1" placeholder="Days" value={selectedTask.intervalDays ?? ''} onChange={(event) => updateTask({ intervalDays: event.target.value ? Number(event.target.value) : undefined })} /></label>
               <label>{isWeekend(activeDate) ? 'Weekend time' : 'Weekday time'}<input type="time" value={preferredTimeFor(selectedTask, activeDate) ?? ''} onChange={(event) => updateTask(preferredTimeChanges(event.target.value || undefined, activeDate, 'explicit'))} /></label>
+              <label>Due date<input type="date" value={selectedTask.nextDueAt} onChange={(event) => event.target.value && updateTask({ nextDueAt: event.target.value, archived: false, scheduledForPlanner: selectedTask.intervalDays ? undefined : true })} /></label>
               <label>Last completed<input type="date" value={lastCompletedDraft} onClick={() => setLastCompletedTouched(true)} onChange={(event) => { setLastCompletedDraft(event.target.value); setLastCompletedTouched(true) }} /></label>
             </div>
             <label className="toggle-row"><span><strong>Fixed schedule</strong><small>Repeat from the scheduled date, not completion</small></span><input type="checkbox" checked={selectedTask.fixedInterval} onChange={(event) => updateTask({ fixedInterval: event.target.checked })} /></label>

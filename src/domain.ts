@@ -75,17 +75,22 @@ export interface AppSetting {
 export interface ParsedTaskInput {
   title: string
   preferredTime?: string
+  dueDate?: string
   intervalDays?: number
   fixedInterval: boolean
 }
 
 const TIME_PATTERN = /(?:^|\s)(?:at\s+)?(1[0-2]|0?[1-9])(?::([0-5]\d))?\s*(a(?:m)?|p(?:m)?)(?=\s|$)/i
 const RECURRENCE_PATTERN = /(?:^|\s)(\d+)d(!)?(?=\s|$)/i
+const DATE_PATTERN = /(?:^|\s)(1[0-2]|0?[1-9])\/(3[01]|[12]\d|0?[1-9])(?=\s|$)/
 
-export function parseTaskInput(input: string): ParsedTaskInput {
+export function parseTaskInput(input: string, referenceDay: Date | string = new Date()): ParsedTaskInput {
   const recurrenceMatch = input.match(RECURRENCE_PATTERN)
   const withoutRecurrence = recurrenceMatch ? input.replace(recurrenceMatch[0], ' ') : input
   const timeMatch = withoutRecurrence.match(TIME_PATTERN)
+  const withoutTime = timeMatch ? withoutRecurrence.replace(timeMatch[0], ' ') : withoutRecurrence
+  const dateMatch = withoutTime.match(DATE_PATTERN)
+  const dueDate = dateMatch ? resolveDueDate(Number(dateMatch[1]), Number(dateMatch[2]), referenceDay) : undefined
   let preferredTime: string | undefined
 
   if (timeMatch) {
@@ -95,11 +100,20 @@ export function parseTaskInput(input: string): ParsedTaskInput {
   }
 
   return {
-    title: (timeMatch ? withoutRecurrence.replace(timeMatch[0], ' ') : withoutRecurrence).replace(/\s+/g, ' ').trim(),
+    title: (dateMatch && dueDate ? withoutTime.replace(dateMatch[0], ' ') : withoutTime).replace(/\s+/g, ' ').trim(),
     preferredTime,
+    dueDate,
     intervalDays: recurrenceMatch ? Number(recurrenceMatch[1]) : undefined,
     fixedInterval: Boolean(recurrenceMatch?.[2]),
   }
+}
+
+function resolveDueDate(month: number, day: number, referenceDay: Date | string): string | undefined {
+  const reference = typeof referenceDay === 'string' ? new Date(`${referenceDay}T12:00:00`) : referenceDay
+  const candidate = new Date(reference.getFullYear(), month - 1, day, 12)
+  if (candidate.getMonth() !== month - 1 || candidate.getDate() !== day) return undefined
+  if (dateKey(candidate) < dateKey(reference)) candidate.setFullYear(candidate.getFullYear() + 1)
+  return dateKey(candidate)
 }
 
 export function dateKey(date: Date): string {

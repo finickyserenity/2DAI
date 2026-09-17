@@ -196,6 +196,7 @@ export function ListWorkspace({
       )}
 
       <SheetSection
+        key={`todo:${activeList.id}:${activeProject?.id ?? 'root'}`}
         name="Todo"
         tasks={scopedTasks.filter((task) => !task.sectionId || !listSections.some((section) => section.id === task.sectionId))}
         focusedTaskId={focusedTaskId}
@@ -212,7 +213,7 @@ export function ListWorkspace({
           section={section}
           name={section.name}
           tasks={scopedTasks.filter((task) => task.sectionId === section.id)}
-          sectionTasks={tasks.filter((task) => task.sectionId === section.id)}
+          sectionTasks={tasks.filter((task) => task.listId === activeList.id && task.projectId === activeProject?.id && task.sectionId === section.id)}
           focusedTaskId={focusedTaskId}
           listId={activeList.id}
           sectionId={section.id}
@@ -261,7 +262,7 @@ function ListIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; task
         </form>
       )}
       <div className="list-grid">
-        {lists.map((list) => {
+        {[...lists].sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: 'base', numeric: true })).map((list) => {
           const count = tasks.filter((task) => task.listId === list.id && !task.archived).length
           const projectCount = projects.filter((project) => project.listId === list.id && !project.archived).length
           return (
@@ -295,10 +296,20 @@ interface SheetSectionProps {
 
 function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
   const [entry, setEntry] = useState('')
-  const [collapsed, setCollapsed] = useState(false)
+  const collapseStorageKey = `2dai:section-collapsed:${listId}:${projectId ?? 'root'}:${sectionId ?? 'todo'}`
+  const [collapsed, setCollapsed] = useState(() => readCollapsedState(collapseStorageKey))
   const [renaming, setRenaming] = useState(false)
   const [sectionName, setSectionName] = useState(name)
   const canDelete = sectionTasks.every((task) => task.archived)
+
+  useEffect(() => {
+    try {
+      if (collapsed) localStorage.setItem(collapseStorageKey, 'true')
+      else localStorage.removeItem(collapseStorageKey)
+    } catch {
+      // The section remains usable when browser storage is unavailable.
+    }
+  }, [collapseStorageKey, collapsed])
 
   async function renameSection(event: FormEvent) {
     event.preventDefault()
@@ -311,7 +322,9 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
   async function deleteSection() {
     if (!section) return
     await db.transaction('rw', db.sections, db.tasks, db.events, async () => {
-      const storedTasks = await db.tasks.where('sectionId').equals(section.id).toArray()
+      const storedTasks = await db.tasks.where('sectionId').equals(section.id).filter((task) => (
+        task.listId === section.listId && task.projectId === section.projectId
+      )).toArray()
       if (storedTasks.some((task) => !task.archived)) return
       if (storedTasks.length) {
         await db.events.where('taskId').anyOf(storedTasks.map((task) => task.id)).delete()
@@ -323,7 +336,7 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
 
   async function addRow(event: FormEvent) {
     event.preventDefault()
-    const parsed = parseTaskInput(entry)
+    const parsed = parseTaskInput(entry, activeDay)
     if (!parsed.title) return
     const now = new Date().toISOString()
     await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, async () => {
@@ -338,7 +351,7 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
           : { weekdayPreferredTime: preferredTime, weekdayPreferredTimeSource: preferredTime ? 'explicit' as const : undefined },
         position: Date.now(), effort: 1,
         intervalDays: parsed.intervalDays, fixedInterval: parsed.fixedInterval,
-        nextDueAt: activeDay, scheduledForPlanner: parsed.intervalDays ? undefined : false, archived: false,
+        nextDueAt: parsed.dueDate ?? activeDay, scheduledForPlanner: parsed.intervalDays ? undefined : Boolean(parsed.dueDate), archived: false,
         createdAt: now, updatedAt: now,
       })
     })
@@ -416,6 +429,14 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
       )}
     </section>
   )
+}
+
+function readCollapsedState(key: string): boolean {
+  try {
+    return localStorage.getItem(key) === 'true'
+  } catch {
+    return false
+  }
 }
 
 function shortDate(value: string): string {
