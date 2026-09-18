@@ -33,7 +33,7 @@ Publish the app manually from your computer with:
 npm run deploy
 ```
 
-This builds the app for `/2dai/` and publishes `dist/` to the `gh-pages` branch. In the GitHub repository, open **Settings → Pages**, select **Deploy from a branch**, then choose the `gh-pages` branch and `/(root)` folder. The project will be available at `https://finickyserenity.github.io/2DAI/`.
+This builds the app for `/2dai/` and publishes `dist/` to the `gh-pages` branch. In the GitHub repository, open **Settings → Pages**, select **Deploy from a branch**, then choose the `gh-pages` branch and `/(root)` folder. The project will be available at `https://finickyserenity.github.io/2dai/`.
 
 On iPhone or iPad, open the deployed site in Safari, choose **Share**, then **Add to Home Screen**. After one successful online load installs the service worker, the installed app can launch and use its existing local data without an internet connection.
 
