@@ -34,6 +34,7 @@ export interface Task {
   effort: number
   intervalDays?: number
   fixedInterval: boolean
+  dueFilters?: string
   preferredTime?: string
   preferredTimeSource?: 'explicit' | 'observed'
   weekdayPreferredTime?: string
@@ -140,17 +141,72 @@ export function preferredTimeFor(task: Task, value: Date | string): string | und
     : task.weekdayPreferredTime ?? task.weekendPreferredTime ?? task.preferredTime
 }
 
+const DAY_FILTERS: Record<string, number[]> = {
+  weekday: [1, 2, 3, 4, 5],
+  weekend: [0, 6],
+  m: [1], mon: [1], monday: [1],
+  tu: [2], tue: [2], tues: [2], tuesday: [2],
+  w: [3], wed: [3], weds: [3], wednesday: [3],
+  th: [4], thu: [4], thur: [4], thurs: [4], thursday: [4],
+  f: [5], fri: [5], friday: [5],
+  sa: [6], sat: [6], saturday: [6],
+  su: [0], sun: [0], sunday: [0],
+}
+
+const MONTH_FILTERS: Record<string, number[]> = {
+  jan: [0], january: [0], feb: [1], february: [1], mar: [2], march: [2], apr: [3], april: [3],
+  may: [4], jun: [5], june: [5], jul: [6], july: [6], aug: [7], august: [7], sep: [8], sept: [8], september: [8],
+  oct: [9], october: [9], nov: [10], november: [10], dec: [11], december: [11],
+  winter: [11, 0, 1], spring: [2, 3, 4], summer: [5, 6, 7], fall: [8, 9, 10], autumn: [8, 9, 10],
+  q1: [0, 1, 2], q2: [3, 4, 5], q3: [6, 7, 8], q4: [9, 10, 11],
+}
+
+interface DueFilterRules {
+  days: Set<number>
+  months: Set<number>
+  monthDays: Set<number>
+}
+
+export function parseDueFilters(value = ''): DueFilterRules {
+  const rules: DueFilterRules = { days: new Set(), months: new Set(), monthDays: new Set() }
+  for (const token of value.toLocaleLowerCase().split(/[\s,]+/).filter(Boolean)) {
+    DAY_FILTERS[token]?.forEach((day) => rules.days.add(day))
+    MONTH_FILTERS[token]?.forEach((month) => rules.months.add(month))
+    const ordinal = token.match(/^(0?[1-9]|[12]\d|3[01])(?:st|nd|rd|th)$/)
+    if (ordinal) rules.monthDays.add(Number(ordinal[1]))
+  }
+  return rules
+}
+
+export function dueDateMatchesFilters(value: Date | string, filters?: string): boolean {
+  const date = typeof value === 'string' ? new Date(`${value}T12:00:00`) : value
+  const rules = parseDueFilters(filters)
+  return (!rules.days.size || rules.days.has(date.getDay()))
+    && (!rules.months.size || rules.months.has(date.getMonth()))
+    && (!rules.monthDays.size || rules.monthDays.has(date.getDate()))
+}
+
+export function nextAllowedDueDate(value: Date | string, filters?: string): string {
+  const start = typeof value === 'string' ? new Date(`${value}T12:00:00`) : new Date(value)
+  let candidate = start
+  for (let offset = 0; offset < 366 * 8; offset += 1) {
+    if (dueDateMatchesFilters(candidate, filters)) return dateKey(candidate)
+    candidate = addDays(candidate, 1)
+  }
+  return dateKey(start)
+}
+
 export function nextDueDate(task: Task, completedAt: Date): string {
-  if (!task.intervalDays) return dateKey(addDays(completedAt, 1))
+  if (!task.intervalDays) return nextAllowedDueDate(addDays(completedAt, 1), task.dueFilters)
 
   if (!task.fixedInterval) {
-    return dateKey(addDays(completedAt, task.intervalDays))
+    return nextAllowedDueDate(addDays(completedAt, task.intervalDays), task.dueFilters)
   }
 
   const priorDueDate = new Date(`${task.nextDueAt}T12:00:00`)
   let nextDate = addDays(priorDueDate, task.intervalDays)
   while (nextDate <= completedAt) nextDate = addDays(nextDate, task.intervalDays)
-  return dateKey(nextDate)
+  return nextAllowedDueDate(nextDate, task.dueFilters)
 }
 
 export function formatFriendlyDate(date: Date): string {

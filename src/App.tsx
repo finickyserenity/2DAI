@@ -26,6 +26,7 @@ import {
   dateKey,
   formatFriendlyDate,
   isWeekend,
+  nextAllowedDueDate,
   nextDueDate,
   parseTaskInput,
   preferredTimeFor,
@@ -58,6 +59,7 @@ function App() {
   const [entryListId, setEntryListId] = useState('personal')
   const [selectedTaskId, setSelectedTaskId] = useState<string>()
   const [taskTitleDraft, setTaskTitleDraft] = useState('')
+  const [dueFiltersDraft, setDueFiltersDraft] = useState('')
   const [lastCompletedDraft, setLastCompletedDraft] = useState('')
   const [lastCompletedTouched, setLastCompletedTouched] = useState(false)
   const [showCompleted, setShowCompleted] = useState(false)
@@ -217,7 +219,7 @@ function App() {
 
       if (action === 'delayed') {
         await db.tasks.update(task.id, {
-          nextDueAt: dateKey(addDays(new Date(`${effectiveDate}T12:00:00`), 1)),
+          nextDueAt: nextAllowedDueDate(addDays(new Date(`${effectiveDate}T12:00:00`), 1), storedTask.dueFilters),
           updatedAt: now.toISOString(),
         })
         return
@@ -288,6 +290,7 @@ function App() {
   function openTaskOptions(taskId: string) {
     const task = snapshot.tasks.find((item) => item.id === taskId)
     setTaskTitleDraft(task?.title ?? '')
+    setDueFiltersDraft(task?.dueFilters ?? '')
     setLastCompletedDraft(task?.lastCompletedAt ? dateKey(new Date(task.lastCompletedAt)) : '')
     setLastCompletedTouched(false)
     setSelectedTaskId(taskId)
@@ -303,6 +306,8 @@ function App() {
       const title = taskTitleDraft.trim()
       if (!title) return
       const changes: Partial<Task> = title !== selectedTask.title ? { title } : {}
+      const dueFilters = dueFiltersDraft.trim()
+      if (dueFilters !== (selectedTask.dueFilters ?? '')) changes.dueFilters = dueFilters || undefined
       if (lastCompletedTouched) {
         if (!lastCompletedDraft) {
           changes.lastCompletedAt = undefined
@@ -310,11 +315,12 @@ function App() {
           const completedAt = new Date(`${lastCompletedDraft}T12:00:00`)
           changes.lastCompletedAt = completedAt.toISOString()
           if (selectedTask.intervalDays) {
-            changes.nextDueAt = dateKey(addDays(completedAt, selectedTask.intervalDays))
+            changes.nextDueAt = nextAllowedDueDate(addDays(completedAt, selectedTask.intervalDays), dueFilters)
             changes.archived = false
           }
         }
       }
+      if (!changes.nextDueAt) changes.nextDueAt = nextAllowedDueDate(selectedTask.nextDueAt, dueFilters)
       if (Object.keys(changes).length) await updateTask(changes)
     }
     closeTaskOptions()
@@ -526,6 +532,7 @@ function App() {
               <label>{isWeekend(activeDate) ? 'Weekend time' : 'Weekday time'}<input type="time" value={preferredTimeFor(selectedTask, activeDate) ?? ''} onChange={(event) => updateTask(preferredTimeChanges(event.target.value || undefined, activeDate, 'explicit'))} /></label>
               <label>Due date<input type="date" value={selectedTask.nextDueAt} onChange={(event) => event.target.value && updateTask({ nextDueAt: event.target.value, archived: false, scheduledForPlanner: selectedTask.intervalDays ? undefined : true })} /></label>
               <label>Last completed<input type="date" value={lastCompletedDraft} onClick={() => setLastCompletedTouched(true)} onChange={(event) => { setLastCompletedDraft(event.target.value); setLastCompletedTouched(true) }} /></label>
+              <label className="due-filters-field">Due filters<textarea rows={2} value={dueFiltersDraft} onChange={(event) => setDueFiltersDraft(event.target.value)} placeholder="weekday, mon, q1, 14th" /></label>
             </div>
             <label className="toggle-row"><span><strong>Fixed schedule</strong><small>Repeat from the scheduled date, not completion</small></span><input type="checkbox" checked={selectedTask.fixedInterval} onChange={(event) => updateTask({ fixedInterval: event.target.checked })} /></label>
             <button className="archive-button" type="button" onClick={async () => { await updateTask({ archived: true }); closeTaskOptions() }}>Archive task</button>

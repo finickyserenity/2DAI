@@ -2,8 +2,10 @@ import { describe, expect, it } from 'vitest'
 import {
   addDays,
   dateKey,
+  dueDateMatchesFilters,
   formatFriendlyDate,
   isWeekend,
+  nextAllowedDueDate,
   nextDueDate,
   parseTaskInput,
   preferredTimeFor,
@@ -116,5 +118,42 @@ describe('nextDueDate', () => {
 
   it('advances fixed recurrence from its prior schedule until it is future', () => {
     expect(nextDueDate(task({ intervalDays: 7, fixedInterval: true, nextDueAt: '2026-09-01' }), completedAt)).toBe('2026-09-22')
+  })
+
+  it('advances recurrence to the first date allowed by its filters', () => {
+    expect(nextDueDate(task({ intervalDays: 1, dueFilters: 'monday q4' }), completedAt)).toBe('2026-10-05')
+  })
+})
+
+describe('due date filters', () => {
+  it.each([
+    ['m', '2026-09-21'], ['mon', '2026-09-21'], ['monday', '2026-09-21'],
+    ['tu', '2026-09-22'], ['th', '2026-09-24'], ['sa', '2026-09-19'], ['su', '2026-09-20'],
+  ])('supports unambiguous weekday alias %s', (filter, date) => {
+    expect(dueDateMatchesFilters(date, filter)).toBe(true)
+  })
+
+  it('requires extra characters for ambiguous s and t weekday aliases', () => {
+    expect(dueDateMatchesFilters('2026-09-21', 's t')).toBe(true)
+    expect(dueDateMatchesFilters('2026-09-19', 'tu')).toBe(false)
+    expect(dueDateMatchesFilters('2026-09-24', 'th')).toBe(true)
+  })
+
+  it('supports weekday, weekend, month, season, quarter, and ordinal filters', () => {
+    expect(dueDateMatchesFilters('2026-09-18', 'weekday')).toBe(true)
+    expect(dueDateMatchesFilters('2026-09-19', 'weekend')).toBe(true)
+    expect(dueDateMatchesFilters('2026-03-14', 'march spring q1 14th')).toBe(true)
+    expect(dueDateMatchesFilters('2026-07-14', 'march spring q1 14th')).toBe(false)
+  })
+
+  it('treats values in one category as alternatives and categories as intersections', () => {
+    expect(dueDateMatchesFilters('2026-10-05', 'mon, fri q4')).toBe(true)
+    expect(dueDateMatchesFilters('2026-10-06', 'mon, fri q4')).toBe(false)
+    expect(dueDateMatchesFilters('2027-01-01', 'mon, fri q4')).toBe(false)
+  })
+
+  it('finds the first allowed date on or after a proposed due date', () => {
+    expect(nextAllowedDueDate('2026-09-17', 'monday, q4')).toBe('2026-10-05')
+    expect(nextAllowedDueDate('2026-09-17', '14th spring')).toBe('2027-03-14')
   })
 })

@@ -33,6 +33,26 @@ test('creates a future-dated task from its subject and edits it with the date pi
   await expect(page.getByLabel('Due date')).toHaveValue(`${candidate.getFullYear()}-12-12`)
 })
 
+test('constrains a task due date with multiple calendar filters', async ({ page }) => {
+  const entry = page.getByRole('textbox', { name: 'New task' })
+  await entry.fill('Filtered due task')
+  await entry.press('Enter')
+
+  await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Me\b/ }).click()
+  await page.getByRole('button', { name: 'Options for Filtered due task' }).click()
+
+  const filters = page.getByLabel('Due filters')
+  await expect(filters).toHaveAttribute('rows', '2')
+  await page.getByLabel('Due date').fill('2026-09-17')
+  await filters.fill('monday, q4')
+  await page.getByRole('button', { name: 'Done' }).click()
+
+  await page.getByRole('button', { name: 'Options for Filtered due task' }).click()
+  await expect(page.getByLabel('Due date')).toHaveValue('2026-10-05')
+  await expect(page.getByLabel('Due filters')).toHaveValue('monday, q4')
+})
+
 test('sorts lists and section options while persisting section display preferences', async ({ page }) => {
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
   const names = await page.locator('.list-grid strong').allTextContents()
