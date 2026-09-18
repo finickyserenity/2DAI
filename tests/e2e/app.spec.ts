@@ -130,8 +130,10 @@ test('keeps the next checkbox inactive after completing a task on touch devices'
   const entry = page.getByRole('textbox', { name: 'New task' })
   await entry.fill('First touch task')
   await entry.press('Enter')
+  await expect(page.getByRole('button', { name: 'Complete First touch task' })).toBeVisible()
   await entry.fill('Second touch task')
   await entry.press('Enter')
+  await expect(page.getByRole('button', { name: 'Complete Second touch task' })).toBeVisible()
 
   await page.getByRole('button', { name: 'Complete First touch task' }).tap()
 
