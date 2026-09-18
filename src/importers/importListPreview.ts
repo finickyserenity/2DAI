@@ -1,9 +1,10 @@
 import { db } from '../db.ts'
+import { createId } from '../id.ts'
 import type { GoogleSheetsImportPreview } from './googleSheetsTsv.ts'
 
 export async function replaceListFromPreview(preview: GoogleSheetsImportPreview): Promise<string> {
   const existingList = (await db.lists.toArray()).find((list) => list.name.toLowerCase() === preview.listName.toLowerCase())
-  const listId = existingList?.id ?? crypto.randomUUID()
+  const listId = existingList?.id ?? createId()
   const now = new Date().toISOString()
 
   await db.transaction('rw', db.lists, db.sections, db.projects, db.tasks, db.events, async () => {
@@ -20,10 +21,10 @@ export async function replaceListFromPreview(preview: GoogleSheetsImportPreview)
 
     let taskPosition = 0
     for (const [sectionPosition, section] of preview.sections.entries()) {
-      const sectionId = crypto.randomUUID()
+      const sectionId = createId()
       await db.sections.add({ id: sectionId, listId, name: section.name, position: sectionPosition })
       await db.tasks.bulkAdd(section.tasks.map((task) => ({
-        id: crypto.randomUUID(),
+        id: createId(),
         listId,
         sectionId,
         title: task.title,

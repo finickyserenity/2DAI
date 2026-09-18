@@ -16,6 +16,7 @@ import {
   X,
 } from 'lucide-react'
 import { db } from './db'
+import { createId } from './id'
 import { ImportListDialog } from './ImportListDialog.tsx'
 import { isWeekend, parseTaskInput, type ProjectFolder, type Task, type TaskAction, type TaskList, type TaskSection } from './domain'
 
@@ -88,7 +89,7 @@ export function ListWorkspace({
     event.preventDefault()
     const name = creationName.trim()
     if (!name || !creationMode) return
-    const id = crypto.randomUUID()
+    const id = createId()
     if (creationMode === 'section') {
       await db.transaction('rw', db.lists, db.projects, db.sections, async () => {
         if (!await db.lists.get(activeListId)) return
@@ -263,7 +264,7 @@ function ListIndex({ lists, sections, tasks, projects, onOpen, onOpenTask }: { l
     event.preventDefault()
     const cleanName = name.trim()
     if (!cleanName) return
-    const id = crypto.randomUUID()
+    const id = createId()
     await db.lists.add({ id, name: cleanName, color: '#4d82b8', position: Date.now() })
     setName('')
     setCreating(false)
@@ -416,7 +417,7 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
       if (sectionId && !await db.sections.get(sectionId)) return
       const preferredTime = parsed.preferredTime
       await db.tasks.add({
-        id: crypto.randomUUID(), listId, sectionId, projectId, title: parsed.title,
+        id: createId(), listId, sectionId, projectId, title: parsed.title,
         ...isWeekend(activeDay)
           ? { weekendPreferredTime: preferredTime, weekendPreferredTimeSource: preferredTime ? 'explicit' as const : undefined }
           : { weekdayPreferredTime: preferredTime, weekdayPreferredTimeSource: preferredTime ? 'explicit' as const : undefined },

@@ -58,6 +58,53 @@ test('creates a future-dated task from its subject and edits it with the date pi
   await expect(page.getByLabel('Due date')).toHaveValue(`${candidate.getFullYear()}-12-12`)
 })
 
+test('adds, edits, and completes tasks offline without randomUUID', async ({ page }) => {
+  await page.addInitScript(() => {
+    Object.defineProperty(Crypto.prototype, 'randomUUID', { configurable: true, value: undefined })
+  })
+  await page.reload()
+  await page.context().setOffline(true)
+
+  const entry = page.getByRole('textbox', { name: 'New task' })
+  await entry.fill('Offline task')
+  await entry.press('Enter')
+  await expect(page.getByText('Offline task', { exact: true })).toBeVisible()
+
+  await page.getByText('Offline task', { exact: true }).click()
+  await page.getByRole('button', { name: 'Options for Offline task' }).click()
+  await page.getByLabel('Subject').fill('Offline task edited')
+  await page.getByRole('button', { name: 'Done' }).click()
+  await expect(page.getByText('Offline task edited', { exact: true })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Complete Offline task edited' }).click()
+  await expect(page.getByRole('button', { name: 'Uncheck Offline task edited' })).toHaveAttribute('aria-pressed', 'true')
+
+  const stored = await page.evaluate(async () => {
+    const database = await new Promise<IDBDatabase>((resolve, reject) => {
+      const request = indexedDB.open('2dai-local')
+      request.onerror = () => reject(request.error)
+      request.onsuccess = () => resolve(request.result)
+    })
+    const transaction = database.transaction(['tasks', 'events'], 'readonly')
+    const tasksRequest = transaction.objectStore('tasks').getAll()
+    const eventsRequest = transaction.objectStore('events').getAll()
+    const [tasks, events] = await Promise.all([
+      new Promise<Array<{ id: string; title: string; archived: boolean }>>((resolve, reject) => {
+        tasksRequest.onerror = () => reject(tasksRequest.error)
+        tasksRequest.onsuccess = () => resolve(tasksRequest.result)
+      }),
+      new Promise<Array<{ taskId: string; action: string }>>((resolve, reject) => {
+        eventsRequest.onerror = () => reject(eventsRequest.error)
+        eventsRequest.onsuccess = () => resolve(eventsRequest.result)
+      }),
+    ])
+    const task = tasks.find((item) => item.title === 'Offline task edited')
+    return { task, completed: events.some((event) => event.taskId === task?.id && event.action === 'completed') }
+  })
+  expect(stored.task).toMatchObject({ title: 'Offline task edited', archived: true })
+  expect(stored.completed).toBe(true)
+})
+
 test('constrains a task due date with multiple calendar filters', async ({ page }) => {
   const entry = page.getByRole('textbox', { name: 'New task' })
   await entry.fill('Filtered due task')

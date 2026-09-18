@@ -20,6 +20,7 @@ import {
   X,
 } from 'lucide-react'
 import { createBackup, db, restoreBackup } from './db'
+import { createId } from './id'
 import { ListWorkspace } from './ListWorkspace'
 import {
   addDays,
@@ -179,7 +180,7 @@ function App({ onRefreshApp }: AppProps) {
     await db.transaction('rw', db.lists, db.tasks, async () => {
       if (!await db.lists.get(entryListId)) return
       await db.tasks.add({
-        id: crypto.randomUUID(),
+        id: createId(),
         listId: entryListId,
         title: parsed.title,
         ...preferredTimeChanges(parsed.preferredTime, snapshot.activeDay, 'explicit'),
@@ -234,7 +235,7 @@ function App({ onRefreshApp }: AppProps) {
       }
 
       await db.events.add({
-        id: crypto.randomUUID(),
+        id: createId(),
         taskId: task.id,
         action,
         effectiveDate,
