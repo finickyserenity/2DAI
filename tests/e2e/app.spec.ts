@@ -33,7 +33,7 @@ test('creates a future-dated task from its subject and edits it with the date pi
   await expect(page.getByLabel('Due date')).toHaveValue(`${candidate.getFullYear()}-12-12`)
 })
 
-test('sorts lists alphabetically and remembers collapsed sections after reload', async ({ page }) => {
+test('sorts lists and section options while persisting section display preferences', async ({ page }) => {
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
   const names = await page.locator('.list-grid strong').allTextContents()
   const sortedNames = [...names].sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true }))
@@ -46,10 +46,29 @@ test('sorts lists alphabetically and remembers collapsed sections after reload',
   await page.getByRole('button', { name: 'Collapse Persistent section' }).click()
   await expect(page.getByRole('button', { name: 'Expand Persistent section' })).toBeVisible()
 
+  await page.getByRole('button', { name: 'New section' }).click()
+  await page.getByRole('textbox', { name: 'Section name' }).fill('Alpha 10')
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByRole('button', { name: 'New section' }).click()
+  await page.getByRole('textbox', { name: 'Section name' }).fill('Alpha 2')
+  await page.getByRole('button', { name: 'Create' }).click()
+  await page.getByRole('button', { name: 'Move Alpha 2 up' }).click()
+
+  const sectionNames = page.locator('.raw-section-heading > strong')
+  await expect(sectionNames).toHaveText(['Todo', 'Persistent section', 'Alpha 2', 'Alpha 10'])
+
+  const todoEntry = page.getByRole('textbox', { name: 'Add task to Todo' })
+  await todoEntry.fill('Section option test')
+  await todoEntry.press('Enter')
+  await page.getByRole('button', { name: 'Options for Section option test' }).click()
+  await expect(page.getByLabel('Section', { exact: true }).locator('option')).toHaveText(['Todo', 'Alpha 2', 'Alpha 10', 'Persistent section'])
+  await page.getByRole('button', { name: 'Done' }).click()
+
   await page.reload()
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
   await page.locator('.list-grid').getByRole('button', { name: /^Home\b/ }).click()
   await expect(page.getByRole('button', { name: 'Expand Persistent section' })).toBeVisible()
+  await expect(page.locator('.raw-section-heading > strong')).toHaveText(['Todo', 'Persistent section', 'Alpha 2', 'Alpha 10'])
 })
 
 test('exports every local data store as a JSON backup', async ({ page }) => {

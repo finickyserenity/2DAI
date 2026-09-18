@@ -125,6 +125,16 @@ export function ListWorkspace({
     await db.projects.update(activeProject.id, { includeInPlanner })
   }
 
+  async function moveSection(section: TaskSection, offset: -1 | 1) {
+    const index = listSections.findIndex((item) => item.id === section.id)
+    const other = listSections[index + offset]
+    if (!other) return
+    await db.transaction('rw', db.sections, async () => {
+      await db.sections.update(section.id, { position: other.position })
+      await db.sections.update(other.id, { position: section.position })
+    })
+  }
+
   async function deleteList() {
     if (activeProject) return
     const deleted = await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, db.events, async () => {
@@ -207,7 +217,7 @@ export function ListWorkspace({
         onManage={onManage}
         onEdit={onEdit}
       />
-      {listSections.map((section) => (
+      {listSections.map((section, index) => (
         <SheetSection
           key={section.id}
           section={section}
@@ -222,6 +232,9 @@ export function ListWorkspace({
           managedTaskIds={managedTaskIds}
           onManage={onManage}
           onEdit={onEdit}
+          onMoveSection={moveSection}
+          canMoveSectionUp={index > 0}
+          canMoveSectionDown={index < listSections.length - 1}
         />
       ))}
     </section>
@@ -292,9 +305,12 @@ interface SheetSectionProps {
   managedTaskIds: Set<string>
   onManage: (task: Task, action: TaskAction) => Promise<void>
   onEdit: (taskId: string) => void
+  onMoveSection?: (section: TaskSection, offset: -1 | 1) => Promise<void>
+  canMoveSectionUp?: boolean
+  canMoveSectionDown?: boolean
 }
 
-function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit }: SheetSectionProps) {
+function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, listId, sectionId, projectId, activeDay, managedTaskIds, onManage, onEdit, onMoveSection, canMoveSectionUp, canMoveSectionDown }: SheetSectionProps) {
   const [entry, setEntry] = useState('')
   const collapseStorageKey = `2dai:section-collapsed:${listId}:${projectId ?? 'root'}:${sectionId ?? 'todo'}`
   const [collapsed, setCollapsed] = useState(() => readCollapsedState(collapseStorageKey))
@@ -392,6 +408,8 @@ function SheetSection({ section, name, tasks, sectionTasks = [], focusedTaskId, 
         <span className="raw-section-count">{tasks.length}</span>
         {section && !renaming && (
           <div className="raw-section-actions">
+            <button type="button" disabled={!canMoveSectionUp} onClick={() => onMoveSection?.(section, -1)} title="Move section up" aria-label={`Move ${name} up`}><ArrowUp size={15} /></button>
+            <button type="button" disabled={!canMoveSectionDown} onClick={() => onMoveSection?.(section, 1)} title="Move section down" aria-label={`Move ${name} down`}><ArrowDown size={15} /></button>
             <button type="button" onClick={() => { setSectionName(name); setRenaming(true) }} title="Rename section" aria-label={`Rename ${name}`}><Pencil size={15} /></button>
             <button type="button" disabled={!canDelete} onClick={deleteSection} title={canDelete ? 'Delete section and its archived tasks' : 'Archive every task before deleting this section'} aria-label={`Delete ${name}`}><Trash2 size={15} /></button>
           </div>
