@@ -23,7 +23,17 @@ Vitest covers domain and import logic with enforced 85% coverage thresholds. Pla
 
 The production build generates a web app manifest and Workbox service worker. The app shell, local fonts, and install icons are precached, while task data remains in the device's IndexedDB database.
 
-Deploy `dist/` over HTTPS at the site root. Service workers require a secure context in production; localhost is the development exception.
+Deploy `dist/` over HTTPS. Service workers require a secure context in production; localhost is the development exception.
+
+### GitHub Pages
+
+Publish the app manually from your computer with:
+
+```sh
+npm run deploy
+```
+
+This builds the app for `/2dai/` and publishes `dist/` to the `gh-pages` branch. In the GitHub repository, open **Settings → Pages**, select **Deploy from a branch**, then choose the `gh-pages` branch and `/(root)` folder. The project will be available at `https://finickyserenity.github.io/2DAI/`.
 
 On iPhone or iPad, open the deployed site in Safari, choose **Share**, then **Add to Home Screen**. After one successful online load installs the service worker, the installed app can launch and use its existing local data without an internet connection.
 
