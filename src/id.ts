@@ -1,6 +1,6 @@
 interface IdCrypto {
   randomUUID?: () => string
-  getRandomValues?: (values: Uint8Array) => Uint8Array
+  getRandomValues?: (values: Uint8Array<ArrayBuffer>) => Uint8Array<ArrayBuffer>
 }
 
 export function createId(source: IdCrypto | undefined = globalThis.crypto): string {

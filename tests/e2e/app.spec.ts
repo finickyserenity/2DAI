@@ -105,6 +105,22 @@ test('adds, edits, and completes tasks offline without randomUUID', async ({ pag
   expect(stored.completed).toBe(true)
 })
 
+test('keeps the next checkbox inactive after completing a task on touch devices', async ({ page, isMobile }) => {
+  test.skip(!isMobile, 'Touch hover regression')
+
+  const entry = page.getByRole('textbox', { name: 'New task' })
+  await entry.fill('First touch task')
+  await entry.press('Enter')
+  await entry.fill('Second touch task')
+  await entry.press('Enter')
+
+  await page.getByRole('button', { name: 'Complete First touch task' }).tap()
+
+  const nextCheckbox = page.getByRole('button', { name: 'Complete Second touch task' })
+  await expect(nextCheckbox).toHaveAttribute('aria-pressed', 'false')
+  await expect(nextCheckbox).toHaveCSS('background-color', 'rgb(255, 255, 255)')
+})
+
 test('constrains a task due date with multiple calendar filters', async ({ page }) => {
   const entry = page.getByRole('textbox', { name: 'New task' })
   await entry.fill('Filtered due task')

@@ -56,7 +56,6 @@ main { padding: 28px 24px 56px; }
 .task-row.not-due .complete-button { border-color: var(--line-strong); }
 .complete-button { width: 28px; height: 28px; margin-left: 6px; padding: 0; display: grid; place-items: center; border: 2px solid var(--blue-400); border-radius: 5px; color: transparent; background: white; line-height: 0; }
 .complete-button svg { display: block; }
-.complete-button:hover { color: white; background: var(--blue-600); border-color: var(--blue-600); }
 .task-row.managed .complete-button { color: white; border-color: var(--blue-600); background: var(--blue-600); }
 .task-copy { min-width: 0; padding: 12px 4px; text-align: left; border: 0; background: transparent; }
 .task-title { display: block; overflow: hidden; color: var(--ink); font: 650 15px/1.35 var(--body); text-overflow: ellipsis; white-space: nowrap; }
@@ -168,11 +167,15 @@ main { padding: 28px 24px 56px; }
 .raw-task-row > * { min-width: 0; }
 .raw-check { width: 23px; height: 23px; display: grid; place-items: center; margin-left: 10px; padding: 0; border: 1.5px solid var(--blue-400); border-radius: 4px; color: transparent; background: white; line-height: 0; }
 .raw-check svg { display: block; }
-.raw-check:hover { color: white; background: var(--blue-600); }
 .raw-schedule { color: var(--blue-600); }
 .raw-task-row.not-due .raw-check { border-color: var(--line-strong); }
 .raw-task-row.not-due .raw-task-name { color: var(--muted); }
 .raw-task-row.managed .raw-check { color: white; border-color: var(--blue-600); background: var(--blue-600); }
+
+@media (hover: hover) and (pointer: fine) {
+  .complete-button:hover { color: white; background: var(--blue-600); border-color: var(--blue-600); }
+  .raw-check:hover { color: white; background: var(--blue-600); }
+}
 .raw-task-name { overflow: hidden; padding: 7px 8px; text-align: left; border: 0; color: var(--ink); background: transparent; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
 .raw-row-actions { display: flex; justify-content: end; padding-right: 4px; }
 .raw-row-actions button { width: 30px; height: 30px; display: grid; place-items: center; border: 0; color: var(--blue-600); background: transparent; }

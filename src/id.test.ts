@@ -9,7 +9,7 @@ describe('createId', () => {
   })
 
   it('creates a UUID from random bytes when randomUUID is unavailable', () => {
-    const getRandomValues = vi.fn((values: Uint8Array) => {
+    const getRandomValues = vi.fn((values: Uint8Array<ArrayBuffer>) => {
       values.set(Array.from({ length: 16 }, (_, index) => index))
       return values
     })
