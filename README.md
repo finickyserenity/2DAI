@@ -17,59 +17,47 @@ If you are developing a production application, we recommend updating the config
 
 ```js
 export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+  # 2dai
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+  A local-first recurring task planner built with React, Vite, TypeScript, and Dexie.
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+  ## Development
 
-```
+  ```sh
+  npm install
+  npm run dev
+  ```
 
-You can also install [eslint-plugin-react-x](https://npmx.dev/package/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://npmx.dev/package/eslint-plugin-react-dom) for React-specific lint rules:
+  ## Tests
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+  Vitest covers the pure domain and import logic. Playwright covers critical workflows in desktop and mobile Chromium using a managed Vite server and isolated browser contexts.
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
+  ```sh
+  npm test                 # Run unit tests once
+  npm run test:watch       # Run unit tests in watch mode
+  npm run test:coverage    # Run unit tests with enforced coverage
+  npm run test:e2e         # Run Playwright functional tests
+  npm run test:all         # Run coverage and functional suites
+  ```
+
+  Install the Playwright browser once on a new machine:
+
+  ```sh
+  npx playwright install chromium
+  ```
+
+  Coverage reports are written to `coverage/`, with an HTML report at `coverage/index.html`. The build fails if global statements, branches, functions, or lines coverage drops below 85% for the instrumented modules configured in `vitest.config.ts`.
+
+  Playwright failure artifacts are written to `test-results/`. The HTML report is written to `playwright-report/` and can be opened with:
+
+  ```sh
+  npx playwright show-report
+  ```
+
+  ## Quality Checks
+
+  ```sh
+  npm run build
+  npm run lint
+  ```
       reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-
-```
