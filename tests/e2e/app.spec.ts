@@ -71,6 +71,44 @@ test('sorts lists and section options while persisting section display preferenc
   await expect(page.locator('.raw-section-heading > strong')).toHaveText(['Todo', 'Persistent section', 'Alpha 2', 'Alpha 10'])
 })
 
+test('searches every list and manages archived task results', async ({ page }) => {
+  await page.getByRole('textbox', { name: 'New task' }).fill('Archived search target')
+  await page.getByRole('textbox', { name: 'New task' }).press('Enter')
+
+  await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
+  await page.getByRole('textbox', { name: 'Search all tasks' }).fill('laundry')
+  const activeResult = page.getByRole('region', { name: 'Task search results' })
+  await expect(activeResult.getByRole('button', { name: "Open Return Eve's laundry" })).toContainText('Family')
+  await activeResult.getByRole('button', { name: "Open Return Eve's laundry" }).click()
+  await expect(page.locator('#task-laundry')).toHaveClass(/focused/)
+
+  await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Me\b/ }).click()
+  await page.getByRole('button', { name: 'Options for Archived search target' }).click()
+  await page.getByRole('button', { name: 'Archive task' }).click()
+  await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
+
+  const search = page.getByRole('textbox', { name: 'Search all tasks' })
+  await page.getByRole('checkbox', { name: 'Show archived' }).check()
+  await expect(page.getByRole('button', { name: 'Restore Archived search target' })).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Show archived' }).uncheck()
+  await search.fill('Archived search target')
+  await expect(page.getByText('No matching tasks.')).toBeVisible()
+  await page.getByRole('checkbox', { name: 'Show archived' }).check()
+  await expect(page.getByText('Archived search target')).toBeVisible()
+  await page.getByRole('button', { name: 'Restore Archived search target' }).click()
+  await expect(page.getByRole('button', { name: 'Open Archived search target' })).toBeEnabled()
+
+  await page.getByRole('button', { name: 'Open Archived search target' }).click()
+  await page.getByRole('button', { name: 'Options for Archived search target' }).click()
+  await page.getByRole('button', { name: 'Archive task' }).click()
+  await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
+  await page.getByRole('textbox', { name: 'Search all tasks' }).fill('Archived search target')
+  await page.getByRole('checkbox', { name: 'Show archived' }).check()
+  await page.getByRole('button', { name: 'Delete Archived search target permanently' }).click()
+  await expect(page.getByText('Archived search target')).not.toBeVisible()
+})
+
 test('exports every local data store as a JSON backup', async ({ page }) => {
   await page.getByRole('button', { name: 'Open menu' }).click()
   await expect(page.getByRole('button', { name: 'Close settings' })).toBeVisible()

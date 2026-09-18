@@ -10,6 +10,7 @@ import {
   Import,
   MoreHorizontal,
   Plus,
+  RotateCcw,
   Search,
   Trash2,
   X,
@@ -29,6 +30,7 @@ interface ListWorkspaceProps {
   activeDay: string
   managedTaskIds: Set<string>
   onLocationChange: (listId?: string, projectId?: string) => void
+  onOpenTask: (task: Task) => void
   onManage: (task: Task, action: TaskAction) => Promise<void>
   onEdit: (taskId: string) => void
 }
@@ -44,6 +46,7 @@ export function ListWorkspace({
   activeDay,
   managedTaskIds,
   onLocationChange,
+  onOpenTask,
   onManage,
   onEdit,
 }: ListWorkspaceProps) {
@@ -62,7 +65,7 @@ export function ListWorkspace({
   }, [focusedTaskId, initialListId, initialProjectId])
 
   if (!activeList) {
-    return <ListIndex lists={lists} tasks={tasks} projects={projects} onOpen={(listId) => onLocationChange(listId)} />
+    return <ListIndex lists={lists} sections={sections} tasks={tasks} projects={projects} onOpen={onLocationChange} onOpenTask={onOpenTask} />
   }
 
   const activeListId = activeList.id
@@ -241,10 +244,20 @@ export function ListWorkspace({
   )
 }
 
-function ListIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; tasks: Task[]; projects: ProjectFolder[]; onOpen: (id: string) => void }) {
+function ListIndex({ lists, sections, tasks, projects, onOpen, onOpenTask }: { lists: TaskList[]; sections: TaskSection[]; tasks: Task[]; projects: ProjectFolder[]; onOpen: (listId: string) => void; onOpenTask: (task: Task) => void }) {
   const [creating, setCreating] = useState(false)
   const [importing, setImporting] = useState(false)
   const [name, setName] = useState('')
+  const [taskSearch, setTaskSearch] = useState('')
+  const [showArchived, setShowArchived] = useState(false)
+  const normalizedSearch = taskSearch.trim().toLocaleLowerCase()
+  const matchingTasks = tasks
+    .filter((task) => normalizedSearch ? showArchived || !task.archived : showArchived && task.archived)
+    .filter((task) => !normalizedSearch || task.title.toLocaleLowerCase().includes(normalizedSearch))
+    .sort((left, right) => left.title.localeCompare(right.title, undefined, { sensitivity: 'base', numeric: true }))
+  const listById = new Map(lists.map((list) => [list.id, list]))
+  const projectById = new Map(projects.map((project) => [project.id, project]))
+  const sectionById = new Map(sections.map((section) => [section.id, section]))
 
   async function addList(event: FormEvent) {
     event.preventDefault()
@@ -255,6 +268,17 @@ function ListIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; task
     setName('')
     setCreating(false)
     onOpen(id)
+  }
+
+  async function restoreTask(task: Task) {
+    await db.tasks.update(task.id, { archived: false, updatedAt: new Date().toISOString() })
+  }
+
+  async function deleteTask(task: Task) {
+    await db.transaction('rw', db.tasks, db.events, async () => {
+      await db.events.where('taskId').equals(task.id).delete()
+      await db.tasks.delete(task.id)
+    })
   }
 
   return (
@@ -273,6 +297,37 @@ function ListIndex({ lists, tasks, projects, onOpen }: { lists: TaskList[]; task
           <button type="submit" disabled={!name.trim()}>Create</button>
           <button type="button" onClick={() => setCreating(false)}>Cancel</button>
         </form>
+      )}
+      <div className="task-search-toolbar">
+        <Search size={18} aria-hidden="true" />
+        <input value={taskSearch} onChange={(event) => setTaskSearch(event.target.value)} placeholder="Search tasks across all lists" aria-label="Search all tasks" />
+        <label><input type="checkbox" checked={showArchived} onChange={(event) => setShowArchived(event.target.checked)} /> Show archived</label>
+      </div>
+      {(normalizedSearch || showArchived) && (
+        <section className="task-search-results" aria-label="Task search results">
+          <div className="section-label"><span>{matchingTasks.length} {matchingTasks.length === 1 ? 'result' : 'results'}</span></div>
+          {matchingTasks.map((task) => {
+            const list = listById.get(task.listId)
+            const project = task.projectId ? projectById.get(task.projectId) : undefined
+            const section = task.sectionId ? sectionById.get(task.sectionId) : undefined
+            return (
+              <article className={`task-search-result${task.archived ? ' archived' : ''}`} key={task.id}>
+                <button className="task-search-copy" type="button" disabled={task.archived} onClick={() => onOpenTask(task)} aria-label={`Open ${task.title}`}>
+                  <strong>{task.title}</strong>
+                  <span><i style={{ background: list?.color }} /> {list?.name ?? 'Unknown list'}{project ? ` / ${project.name}` : ''}{section ? ` / ${section.name}` : ''}</span>
+                </button>
+                {task.archived ? (
+                  <div className="task-search-actions">
+                    <span>Archived</span>
+                    <button type="button" onClick={() => restoreTask(task)} title="Restore task" aria-label={`Restore ${task.title}`}><RotateCcw size={17} /></button>
+                    <button className="delete" type="button" onClick={() => deleteTask(task)} title="Delete task permanently" aria-label={`Delete ${task.title} permanently`}><Trash2 size={17} /></button>
+                  </div>
+                ) : <ChevronRight size={18} aria-hidden="true" />}
+              </article>
+            )
+          })}
+          {!matchingTasks.length && <div className="task-search-empty">{normalizedSearch ? 'No matching tasks.' : 'No archived tasks.'}</div>}
+        </section>
       )}
       <div className="list-grid">
         {[...lists].sort((left, right) => left.name.localeCompare(right.name, undefined, { sensitivity: 'base', numeric: true })).map((list) => {

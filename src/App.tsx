@@ -419,6 +419,7 @@ function App() {
             activeDay={snapshot.activeDay}
             managedTaskIds={completedIds}
             onLocationChange={openSheet}
+            onOpenTask={openTaskInList}
             onManage={manageTask}
             onEdit={openTaskOptions}
           />

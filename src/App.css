@@ -105,6 +105,27 @@ main { padding: 28px 24px 56px; }
 .list-title-actions .danger-button:disabled { color: var(--line-strong); border-color: var(--line); cursor: default; }
 .list-index-actions { display: flex; gap: 8px; }
 .list-index-actions button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 38px; padding: 8px 12px; border: 1px solid var(--blue-200); border-radius: 5px; color: var(--blue-700); background: white; font-weight: 700; }
+.task-search-toolbar { min-height: 46px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; margin-bottom: 16px; padding: 0 12px; border: 1px solid var(--blue-200); border-radius: 6px; color: var(--blue-600); background: white; box-shadow: 0 5px 18px rgba(29, 75, 116, .06); }
+.task-search-toolbar > input { min-width: 0; border: 0; outline: 0; color: var(--ink); background: transparent; }
+.task-search-toolbar > label { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: 12px; font-weight: 700; white-space: nowrap; }
+.task-search-toolbar > label input { width: 17px; height: 17px; margin: 0; accent-color: var(--blue-600); }
+.task-search-results { margin: 0 0 20px; border: 1px solid var(--line); background: white; }
+.task-search-results .section-label { padding: 0 12px; border-bottom: 1px solid var(--line); background: #eef3f6; }
+.task-search-result { min-height: 58px; display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 0 10px 0 4px; border-bottom: 1px solid var(--line); }
+.task-search-result:last-of-type { border-bottom: 0; }
+.task-search-result.archived { background: #fafbfc; }
+.task-search-copy { min-width: 0; display: grid; gap: 4px; padding: 10px 8px; text-align: left; border: 0; color: var(--ink); background: transparent; }
+.task-search-copy:disabled { cursor: default; }
+.task-search-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.task-search-copy span { display: flex; align-items: center; gap: 5px; overflow: hidden; color: var(--muted); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.task-search-copy i { width: 7px; height: 7px; flex: none; border-radius: 50%; }
+.task-search-result > svg { color: var(--blue-700); }
+.task-search-actions { display: flex; align-items: center; gap: 3px; }
+.task-search-actions > span { margin-right: 4px; color: var(--muted); font-size: 10px; font-weight: 700; text-transform: uppercase; }
+.task-search-actions button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 0; border-radius: 4px; color: var(--blue-700); background: transparent; }
+.task-search-actions button:hover { background: var(--blue-50); }
+.task-search-actions .delete { color: #a33c43; }
+.task-search-empty { padding: 24px 12px; color: var(--muted); text-align: center; font-size: 13px; }
 .inline-create { min-height: 46px; display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: 8px; margin: -6px 0 14px; padding: 6px 8px 6px 12px; border: 1px solid var(--blue-200); border-radius: 5px; color: var(--blue-700); background: var(--blue-50); }
 .inline-create input { min-width: 0; padding: 7px 8px; border: 1px solid var(--blue-200); border-radius: 4px; outline: 0; color: var(--ink); background: white; }
 .inline-create button { padding: 7px 10px; border: 0; border-radius: 4px; color: var(--blue-700); background: white; font-size: 12px; font-weight: 700; }
@@ -213,6 +234,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .list-title-actions button { min-height: 34px; padding: 6px 9px; font-size: 12px; }
   .list-index-actions { flex-direction: column-reverse; }
   .list-index-actions button { min-height: 34px; padding: 6px 9px; font-size: 12px; }
+  .task-search-toolbar { grid-template-columns: auto minmax(0, 1fr); padding-block: 8px; }
+  .task-search-toolbar > label { grid-column: 2; }
+  .task-search-result { padding-right: 5px; }
+  .task-search-actions > span { display: none; }
   .inline-create { grid-template-columns: auto minmax(0, 1fr) auto; }
   .inline-create button:last-child { grid-column: 2 / 4; padding: 4px; background: transparent; }
   .list-grid, .project-strip { grid-template-columns: 1fr; }
