@@ -10,10 +10,23 @@ import '@fontsource/manrope/700.css'
 import './index.css'
 import App from './App.tsx'
 
-registerSW({ immediate: true })
+let serviceWorkerRegistration: ServiceWorkerRegistration | undefined
+const updateSW = registerSW({
+  immediate: true,
+  onRegisteredSW: (_scriptUrl, registration) => {
+    serviceWorkerRegistration = registration
+  },
+})
+
+async function refreshApp() {
+  const registration = serviceWorkerRegistration ?? await navigator.serviceWorker?.getRegistration()
+  await registration?.update()
+  await updateSW(true)
+  window.location.reload()
+}
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
-    <App />
+    <App onRefreshApp={refreshApp} />
   </StrictMode>,
 )

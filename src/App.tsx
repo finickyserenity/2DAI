@@ -53,7 +53,11 @@ const viewLabels: Record<View, string> = {
   sheets: 'Lists',
 }
 
-function App() {
+interface AppProps {
+  onRefreshApp: () => Promise<void>
+}
+
+function App({ onRefreshApp }: AppProps) {
   const [view, setView] = useState<View>('today')
   const [entry, setEntry] = useState('')
   const [entryListId, setEntryListId] = useState('personal')
@@ -69,6 +73,8 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [backupMessage, setBackupMessage] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+  const [isRefreshing, setIsRefreshing] = useState(false)
+  const [currentDay, setCurrentDay] = useState(() => dateKey(new Date()))
   const [editingUserName, setEditingUserName] = useState(false)
   const [userNameDraft, setUserNameDraft] = useState('')
   const backupInputRef = useRef<HTMLInputElement>(null)
@@ -100,6 +106,32 @@ function App() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [settingsOpen])
 
+  useEffect(() => {
+    let timer: ReturnType<typeof setTimeout>
+    const updateCurrentDay = () => setCurrentDay(dateKey(new Date()))
+    const scheduleNextHour = () => {
+      const now = new Date()
+      const nextHour = new Date(now)
+      nextHour.setHours(now.getHours() + 1, 0, 0, 0)
+      timer = setTimeout(() => {
+        updateCurrentDay()
+        scheduleNextHour()
+      }, nextHour.getTime() - now.getTime())
+    }
+    const handleVisibilityChange = () => {
+      if (!document.hidden) updateCurrentDay()
+    }
+
+    scheduleNextHour()
+    window.addEventListener('focus', updateCurrentDay)
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => {
+      clearTimeout(timer)
+      window.removeEventListener('focus', updateCurrentDay)
+      document.removeEventListener('visibilitychange', handleVisibilityChange)
+    }
+  }, [])
+
   const snapshot = useLiveQuery(async () => {
     const [tasks, lists, sections, projects, activeDaySetting, userNameSetting, events] = await Promise.all([
       db.tasks.toArray(),
@@ -113,7 +145,7 @@ function App() {
     return { tasks, lists, sections, projects, events, activeDay: activeDaySetting?.value ?? dateKey(new Date()), userName: userNameSetting?.value ?? 'User' }
   }, [], { tasks: [], lists: [], sections: [], projects: [], events: [], activeDay: dateKey(new Date()), userName: 'User' })
 
-  const today = dateKey(new Date())
+  const today = currentDay
   const activeDate = new Date(`${snapshot.activeDay}T12:00:00`)
   const isNewDayAvailable = snapshot.activeDay < today
   const managedEvents = snapshot.events
@@ -279,6 +311,17 @@ function App() {
     }
   }
 
+  async function refreshFromServer() {
+    setBackupMessage('Checking for updates...')
+    setIsRefreshing(true)
+    try {
+      await onRefreshApp()
+    } catch {
+      setBackupMessage('The update check failed. Check your connection and try again.')
+      setIsRefreshing(false)
+    }
+  }
+
   async function updateTask(changes: Partial<Task>) {
     if (!selectedTask) return
     await db.transaction('rw', db.lists, db.projects, db.sections, db.tasks, async () => {
@@ -400,8 +443,12 @@ function App() {
             <div className="settings-content">
               <p className="eyebrow">Data management</p>
               <h2 id="settings-title">Settings</h2>
-              <p className="settings-intro">Download a complete backup or restore your data on this device.</p>
+              <p className="settings-intro">Check for app updates, download a complete backup, or restore your data on this device.</p>
               <div className="backup-actions">
+                <button type="button" onClick={refreshFromServer} disabled={isRefreshing}>
+                  <RotateCcw size={19} />
+                  <span><strong>{isRefreshing ? 'Checking for updates...' : 'Refresh app'}</strong><small>Load the latest version from the server</small></span>
+                </button>
                 <button type="button" onClick={exportData}>
                   <Download size={19} />
                   <span><strong>Export data</strong><small>Download a JSON backup</small></span>
@@ -471,7 +518,7 @@ function App() {
         {isNewDayAvailable && view === 'today' && (
           <button className="new-day" type="button" onClick={startNewDay}>
             <span className="new-day-icon"><RotateCcw size={19} /></span>
-            <span><strong>Start new day</strong><small>{formatFriendlyDate(new Date())}</small></span>
+            <span><strong>Start new day</strong><small>{formatFriendlyDate(new Date(`${today}T12:00:00`))}</small></span>
             <ChevronRight size={20} />
           </button>
         )}

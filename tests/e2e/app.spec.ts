@@ -22,6 +22,15 @@ test('customizes and persists the header name', async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'Alex' })).toBeVisible()
 })
 
+test('renders Start New Day when an open page crosses midnight', async ({ page }) => {
+  await page.clock.install({ time: new Date(2026, 8, 18, 23, 59, 59) })
+  await page.reload()
+  await expect(page.getByRole('button', { name: /Start new day/ })).not.toBeVisible()
+
+  await page.clock.runFor(2_000)
+  await expect(page.getByRole('button', { name: /Start new day/ })).toBeVisible()
+})
+
 test('creates a future-dated task from its subject and edits it with the date picker', async ({ page }) => {
   const now = new Date()
   const month = 4
@@ -166,4 +175,12 @@ test('exports every local data store as a JSON backup', async ({ page }) => {
   expect(Object.keys(backup.data).sort()).toEqual(['events', 'lists', 'projects', 'sections', 'settings', 'tasks'])
   expect(backup.data.lists.length).toBeGreaterThan(0)
   expect(backup.data.tasks.length).toBeGreaterThan(0)
+})
+
+test('refreshes the app from Settings', async ({ page }) => {
+  await page.getByRole('button', { name: 'Open menu' }).click()
+  const loaded = page.waitForEvent('load')
+  await page.getByRole('button', { name: /Refresh app/ }).click()
+  await loaded
+  await expect(page.getByRole('heading', { name: 'User' })).toBeVisible()
 })
