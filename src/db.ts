@@ -85,16 +85,17 @@ class TwoDaiDatabase extends Dexie {
 
       return this.transaction('rw', this.lists, this.tasks, this.settings, async () => {
         await this.lists.bulkAdd([
-          { id: 'personal', name: 'Me', color: '#4d82b8', position: 0 },
-          { id: 'home', name: 'Home', color: '#5b8f7a', position: 1 },
-          { id: 'family', name: 'Family', color: '#b57a52', position: 2 },
+          { id: 'personal', name: 'Personal', color: '#4d82b8', position: 0 },
+          { id: 'household', name: 'Household', color: '#5b8f7a', position: 1 },
+          { id: 'errands', name: 'Errands', color: '#b57a52', position: 2 },
         ])
         await this.tasks.bulkAdd([
-          makeTask('coffee', 'personal', 'Coffee 1', 0, today, now, { preferredTime: '07:30', intervalDays: 1 }),
-          makeTask('calendar', 'personal', 'Check mobile calendar', 1, today, now, { preferredTime: '08:00', intervalDays: 1 }),
-          makeTask('desk', 'home', 'Clear desk', 2, today, now, { intervalDays: 1, effort: 2 }),
-          makeTask('laundry', 'family', "Return Eve's laundry", 3, today, now, { intervalDays: 10, fixedInterval: true, effort: 3 }),
-          makeTask('haircut', 'personal', 'Schedule haircut', 4, dateKey(new Date(Date.now() + 4 * 86_400_000)), now, { intervalDays: 42, effort: 2 }),
+          makeTask('review-schedule', 'personal', "Check today's schedule", 0, today, now, { preferredTime: '08:00', intervalDays: 1 }),
+          makeTask('tidy-living-space', 'household', 'Tidy up', 1, today, now, { intervalDays: 1, effort: 2 }),
+          makeTask('laundry', 'household', 'Do laundry', 2, dateKey(new Date(Date.now() + 2 * 86_400_000)), now, { intervalDays: 7, effort: 3 }),
+          makeTask('household-waste', 'household', 'Take out the trash', 3, dateKey(new Date(Date.now() + 3 * 86_400_000)), now, { intervalDays: 7, effort: 2 }),
+          makeTask('essential-supplies', 'errands', 'Pick up groceries', 4, dateKey(new Date(Date.now() + 4 * 86_400_000)), now, { intervalDays: 7, effort: 2 }),
+          makeTask('recurring-expenses', 'personal', 'Check upcoming bills', 5, dateKey(new Date(Date.now() + 7 * 86_400_000)), now, { intervalDays: 30, effort: 2 }),
         ])
         await this.settings.add({ key: 'activeDay', value: today })
         await this.settings.add({ key: 'userName', value: 'User' })

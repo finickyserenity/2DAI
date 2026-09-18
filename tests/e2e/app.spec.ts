@@ -6,6 +6,25 @@ test.beforeEach(async ({ page }) => {
   await expect(page.getByRole('heading', { name: 'User' })).toBeVisible()
 })
 
+test('starts new users with neutral lists and routine tasks', async ({ page }) => {
+  await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
+  await expect(page.locator('.list-grid strong')).toHaveText(['Errands', 'Household', 'Personal'])
+
+  await page.locator('.list-grid').getByRole('button', { name: /^Personal\b/ }).click()
+  await expect(page.getByRole('button', { name: "Check today's schedule", exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Check upcoming bills', exact: true })).toBeVisible()
+
+  await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Household\b/ }).click()
+  await expect(page.getByRole('button', { name: 'Tidy up', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Do laundry', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Take out the trash', exact: true })).toBeVisible()
+
+  await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Errands\b/ }).click()
+  await expect(page.getByRole('button', { name: 'Pick up groceries', exact: true })).toBeVisible()
+})
+
 test('customizes and persists the header name', async ({ page }) => {
   await page.getByRole('button', { name: 'Change name User' }).click()
   const name = page.getByRole('textbox', { name: 'Header name' })
@@ -40,12 +59,12 @@ test('creates a future-dated task from its subject and edits it with the date pi
   const expectedDate = `${candidate.getFullYear()}-04-20`
 
   const entry = page.getByRole('textbox', { name: 'New task' })
-  await expect(page.getByRole('option', { name: 'Me', exact: true })).toBeAttached()
+  await expect(page.getByRole('option', { name: 'Personal', exact: true })).toBeAttached()
   await entry.fill('E2E dated task 4/20 2:30p')
   await entry.press('Enter')
 
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
-  await page.locator('.list-grid').getByRole('button', { name: /^Me\b/ }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Personal\b/ }).click()
   await expect(page.getByRole('button', { name: 'E2E dated task', exact: true })).toBeVisible()
   await page.getByRole('button', { name: 'Options for E2E dated task' }).click()
 
@@ -127,7 +146,7 @@ test('constrains a task due date with multiple calendar filters', async ({ page 
   await entry.press('Enter')
 
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
-  await page.locator('.list-grid').getByRole('button', { name: /^Me\b/ }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Personal\b/ }).click()
   await page.getByRole('button', { name: 'Options for Filtered due task' }).click()
 
   const filters = page.getByLabel('Due filters')
@@ -147,7 +166,7 @@ test('sorts lists and section options while persisting section display preferenc
   const sortedNames = [...names].sort((left, right) => left.localeCompare(right, undefined, { sensitivity: 'base', numeric: true }))
   expect(names).toEqual(sortedNames)
 
-  await page.locator('.list-grid').getByRole('button', { name: /^Home\b/ }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Household\b/ }).click()
   await page.getByRole('button', { name: 'New section' }).click()
   await page.getByRole('textbox', { name: 'Section name' }).fill('Persistent section')
   await page.getByRole('button', { name: 'Create' }).click()
@@ -174,7 +193,7 @@ test('sorts lists and section options while persisting section display preferenc
 
   await page.reload()
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
-  await page.locator('.list-grid').getByRole('button', { name: /^Home\b/ }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Household\b/ }).click()
   await expect(page.getByRole('button', { name: 'Expand Persistent section' })).toBeVisible()
   await expect(page.locator('.raw-section-heading > strong')).toHaveText(['Todo', 'Persistent section', 'Alpha 2', 'Alpha 10'])
 })
@@ -186,12 +205,12 @@ test('searches every list and manages archived task results', async ({ page }) =
   await page.getByLabel('Planning range').getByRole('button', { name: 'Lists' }).click()
   await page.getByRole('textbox', { name: 'Search all tasks' }).fill('laundry')
   const activeResult = page.getByRole('region', { name: 'Task search results' })
-  await expect(activeResult.getByRole('button', { name: "Open Return Eve's laundry" })).toContainText('Family')
-  await activeResult.getByRole('button', { name: "Open Return Eve's laundry" }).click()
+  await expect(activeResult.getByRole('button', { name: 'Open Do laundry' })).toContainText('Household')
+  await activeResult.getByRole('button', { name: 'Open Do laundry' }).click()
   await expect(page.locator('#task-laundry')).toHaveClass(/focused/)
 
   await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
-  await page.locator('.list-grid').getByRole('button', { name: /^Me\b/ }).click()
+  await page.locator('.list-grid').getByRole('button', { name: /^Personal\b/ }).click()
   await page.getByRole('button', { name: 'Options for Archived search target' }).click()
   await page.getByRole('button', { name: 'Archive task' }).click()
   await page.locator('.list-breadcrumbs').getByRole('button', { name: 'Lists' }).click()
