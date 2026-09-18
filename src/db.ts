@@ -97,7 +97,7 @@ class TwoDaiDatabase extends Dexie {
           makeTask('haircut', 'personal', 'Schedule haircut', 4, dateKey(new Date(Date.now() + 4 * 86_400_000)), now, { intervalDays: 42, effort: 2 }),
         ])
         await this.settings.add({ key: 'activeDay', value: today })
-        await this.settings.add({ key: 'userName', value: 'Marcus' })
+        await this.settings.add({ key: 'userName', value: 'User' })
       })
     })
   }

@@ -69,7 +69,10 @@ function App() {
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [backupMessage, setBackupMessage] = useState('')
   const [isImporting, setIsImporting] = useState(false)
+  const [editingUserName, setEditingUserName] = useState(false)
+  const [userNameDraft, setUserNameDraft] = useState('')
   const backupInputRef = useRef<HTMLInputElement>(null)
+  const cancelUserNameEditRef = useRef(false)
 
   useEffect(() => {
     function applyLocation(location: AppLocation) {
@@ -107,8 +110,8 @@ function App() {
       db.settings.get('userName'),
       db.events.toArray(),
     ])
-    return { tasks, lists, sections, projects, events, activeDay: activeDaySetting?.value ?? dateKey(new Date()), userName: userNameSetting?.value ?? 'Marcus' }
-  }, [], { tasks: [], lists: [], sections: [], projects: [], events: [], activeDay: dateKey(new Date()), userName: 'Marcus' })
+    return { tasks, lists, sections, projects, events, activeDay: activeDaySetting?.value ?? dateKey(new Date()), userName: userNameSetting?.value ?? 'User' }
+  }, [], { tasks: [], lists: [], sections: [], projects: [], events: [], activeDay: dateKey(new Date()), userName: 'User' })
 
   const today = dateKey(new Date())
   const activeDate = new Date(`${snapshot.activeDay}T12:00:00`)
@@ -344,13 +347,36 @@ function App() {
     setView('sheets')
   }
 
+  function startEditingUserName() {
+    setUserNameDraft(snapshot.userName)
+    setEditingUserName(true)
+  }
+
+  async function saveUserName() {
+    if (cancelUserNameEditRef.current) {
+      cancelUserNameEditRef.current = false
+      setEditingUserName(false)
+      return
+    }
+    const userName = userNameDraft.trim()
+    if (userName && userName !== snapshot.userName) await db.settings.put({ key: 'userName', value: userName })
+    setEditingUserName(false)
+  }
+
   return (
     <div className="app-shell">
       <header className="topbar">
         <div className="brand-mark">2DAI</div>
         <div>
           <p className="eyebrow">Your day</p>
-          <h1>{snapshot.userName}</h1>
+          <h1>
+            {editingUserName
+              ? <input autoFocus value={userNameDraft} maxLength={40} aria-label="Header name" onChange={(event) => setUserNameDraft(event.target.value)} onBlur={saveUserName} onKeyDown={(event) => {
+                  if (event.key === 'Enter') event.currentTarget.blur()
+                  if (event.key === 'Escape') { cancelUserNameEditRef.current = true; event.currentTarget.blur() }
+                }} />
+              : <button type="button" onClick={startEditingUserName} aria-label={`Change name ${snapshot.userName}`}>{snapshot.userName}</button>}
+          </h1>
         </div>
         <button
           className="menu-button"

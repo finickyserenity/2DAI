@@ -3,7 +3,23 @@ import { expect, test } from '@playwright/test'
 
 test.beforeEach(async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('heading', { name: 'Marcus' })).toBeVisible()
+  await expect(page.getByRole('heading', { name: 'User' })).toBeVisible()
+})
+
+test('customizes and persists the header name', async ({ page }) => {
+  await page.getByRole('button', { name: 'Change name User' }).click()
+  const name = page.getByRole('textbox', { name: 'Header name' })
+  await name.fill('Alex')
+  await name.press('Enter')
+  await expect(page.getByRole('heading', { name: 'Alex' })).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByRole('heading', { name: 'Alex' })).toBeVisible()
+
+  await page.getByRole('button', { name: 'Change name Alex' }).click()
+  await page.getByRole('textbox', { name: 'Header name' }).fill('Discarded')
+  await page.getByRole('textbox', { name: 'Header name' }).press('Escape')
+  await expect(page.getByRole('heading', { name: 'Alex' })).toBeVisible()
 })
 
 test('creates a future-dated task from its subject and edits it with the date picker', async ({ page }) => {
